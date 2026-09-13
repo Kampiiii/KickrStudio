@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="18%" r="95%">
+      <stop offset="0%" stop-color="#1a2433"/>
+      <stop offset="55%" stop-color="#101722"/>
+      <stop offset="100%" stop-color="#0b0f14"/>
+    </radialGradient>
+    <linearGradient id="glowline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3ecf8e" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="#3ecf8e"/>
+      <stop offset="100%" stop-color="#3ecf8e" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Hintergrund -->
+  <rect x="0" y="0" width="512" height="512" rx="104" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="100" fill="none" stroke="#2a3a4e" stroke-width="3" opacity="0.6"/>
+
+  <!-- Workout-Profil: Intervall-Balken in Zonenfarben -->
+  <g>
+    <rect x="76"  y="316" width="56" height="112" rx="10" fill="#3b9dd6"/>
+    <rect x="146" y="264" width="56" height="164" rx="10" fill="#3ecf8e"/>
+    <rect x="216" y="196" width="56" height="232" rx="10" fill="#e8c547"/>
+    <rect x="286" y="140" width="56" height="288" rx="10" fill="#f2903a"/>
+    <rect x="356" y="228" width="56" height="200" rx="10" fill="#e5484d"/>
+  </g>
+  <!-- Bodenlinie -->
+  <rect x="64" y="428" width="384" height="8" rx="4" fill="#243244"/>
+
+  <!-- Puls-/Leistungslinie mit Glow -->
+  <path d="M 60 150 L 150 150 L 186 96 L 232 208 L 268 150 L 452 150"
+        fill="none" stroke="url(#glowline)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glow)"/>
+</svg>
