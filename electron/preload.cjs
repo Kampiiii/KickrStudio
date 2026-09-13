@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('kickr', {
 
   // Export/Strava
   exportTcx: (sessionId) => ipcRenderer.invoke('export:tcx', sessionId),
+  withingsConnect: () => ipcRenderer.invoke('withings:connect'),
+  withingsDisconnect: () => ipcRenderer.invoke('withings:disconnect'),
+  withingsSync: () => ipcRenderer.invoke('withings:sync'),
+  listBody: () => ipcRenderer.invoke('body:list'),
   stravaConnect: () => ipcRenderer.invoke('strava:connect'),
   stravaDisconnect: () => ipcRenderer.invoke('strava:disconnect'),
   stravaUpload: (sessionId) => ipcRenderer.invoke('strava:upload', sessionId),

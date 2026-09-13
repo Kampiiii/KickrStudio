@@ -7,10 +7,13 @@ export interface Settings {
   ftp: number
   ftpHistory: { date: string; ftp: number }[]
   weightKg: number
+  heightCm: number | null
+  birthYear: number | null
   hrMax: number
   hrRest: number
   powerZones: { name: string; pctHigh: number }[]
   strava: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; athleteName: string }
+  withings: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; userId: string; autoWeight: boolean; lastSyncAt: string }
   erg: { smoothingSec: number; trimStepPct: number; resendIntervalSec: number }
   devices: { trainer: { name: string } | null; hr: { name: string } | null }
   autoConnect: boolean
@@ -39,6 +42,17 @@ export interface Session extends SessionMeta {
 
 export interface QueuedWorkout { workout: Workout; note?: string; queuedAt: string }
 
+export interface BodyEntry {
+  date: string
+  weightKg?: number
+  fatPct?: number
+  fatKg?: number
+  fatFreeKg?: number
+  muscleKg?: number
+  waterKg?: number
+  boneKg?: number
+}
+
 export interface KickrBridge {
   onBleDevices(cb: (devices: { id: string; name: string }[]) => void): () => void
   bleSelect(deviceId: string): void
@@ -57,6 +71,10 @@ export interface KickrBridge {
   snapshotBuiltins?(list: Workout[]): Promise<boolean>
   onDataChanged(cb: () => void): () => void
   exportTcx(sessionId: string): Promise<{ ok: boolean; filePath?: string; error?: string; canceled?: boolean }>
+  withingsConnect(): Promise<{ ok: boolean; error?: string }>
+  withingsDisconnect(): Promise<boolean>
+  withingsSync(): Promise<{ ok: boolean; count?: number; total?: number; latestWeight?: number; error?: string }>
+  listBody(): Promise<BodyEntry[]>
   stravaConnect(): Promise<{ ok: boolean; athleteName?: string; error?: string }>
   stravaDisconnect(): Promise<boolean>
   stravaUpload(sessionId: string): Promise<{ ok: boolean; activityId?: number | null; pending?: boolean; error?: string }>
@@ -78,7 +96,7 @@ function ls<T>(key: string, fallback: T): T {
 function lsSet(key: string, value: unknown) { localStorage.setItem(key, JSON.stringify(value)) }
 
 const DEFAULT_SETTINGS: Settings = {
-  ftp: 200, ftpHistory: [], weightKg: 78, hrMax: 185, hrRest: 55,
+  ftp: 200, ftpHistory: [], weightKg: 78, heightCm: null, birthYear: null, hrMax: 185, hrRest: 55,
   powerZones: [
     { name: 'Z1 Regeneration', pctHigh: 55 }, { name: 'Z2 Grundlage', pctHigh: 75 },
     { name: 'Z3 Tempo', pctHigh: 90 }, { name: 'Z4 Schwelle', pctHigh: 105 },
@@ -86,6 +104,7 @@ const DEFAULT_SETTINGS: Settings = {
     { name: 'Z7 Sprint', pctHigh: 999 },
   ],
   strava: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' },
+  withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
   devices: { trainer: null, hr: null },
   autoConnect: true,
@@ -117,6 +136,10 @@ const browserMock: KickrBridge = {
   clearQueuedWorkout: async () => { localStorage.removeItem('ks-queued'); return true },
   onDataChanged: () => () => {},
   exportTcx: async () => ({ ok: false, error: 'TCX-Export nur in der Desktop-App verfügbar.' }),
+  withingsConnect: async () => ({ ok: false, error: 'Withings nur in der Desktop-App verfügbar.' }),
+  withingsDisconnect: async () => true,
+  withingsSync: async () => ({ ok: false, error: 'Withings nur in der Desktop-App verfügbar.' }),
+  listBody: async () => ls('ks-body', []),
   stravaConnect: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaDisconnect: async () => true,
   stravaUpload: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),

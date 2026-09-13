@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(app.settings)
   const [info, setInfo] = useState<{ dataDir: string; mcpServerPath: string; nodeHint: string } | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [withingsConnecting, setWithingsConnecting] = useState(false)
 
   useEffect(() => { bridge.appInfo().then(setInfo) }, [])
   useEffect(() => { setS(app.settings) }, [app.settings])
@@ -39,6 +40,20 @@ export default function SettingsPage() {
     } else showToast(r.error || 'Verbindung fehlgeschlagen', 'err')
   }
 
+  const withingsConnect = async () => {
+    await save(s)
+    setWithingsConnecting(true)
+    const r = await bridge.withingsConnect()
+    setWithingsConnecting(false)
+    if (r.ok) {
+      showToast('Mit Withings verbunden ✓ — synchronisiere Waagendaten …')
+      setState({ settings: await bridge.getSettings() })
+      const sync = await bridge.withingsSync()
+      if (sync.ok) showToast(`Withings: ${sync.count} Messungen übernommen.`)
+      setState({ settings: await bridge.getSettings() })
+    } else showToast(r.error || 'Verbindung fehlgeschlagen', 'err')
+  }
+
   const mcpSnippet = info ? JSON.stringify({
     mcpServers: {
       'kickr-studio': { command: 'node', args: [info.mcpServerPath] },
@@ -59,6 +74,14 @@ export default function SettingsPage() {
             <label className="field">Gewicht (kg)
               <input type="number" value={s.weightKg} onChange={e => upd({ weightKg: Number(e.target.value) })} />
             </label>
+            <label className="field">Größe (cm)
+              <input type="number" value={s.heightCm ?? ''} placeholder="z.B. 182"
+                onChange={e => upd({ heightCm: e.target.value ? Number(e.target.value) : null })} />
+            </label>
+            <label className="field">Geburtsjahr
+              <input type="number" value={s.birthYear ?? ''} placeholder="z.B. 1978"
+                onChange={e => upd({ birthYear: e.target.value ? Number(e.target.value) : null })} />
+            </label>
             <label className="field">HF max (bpm)
               <input type="number" value={s.hrMax} onChange={e => upd({ hrMax: Number(e.target.value) })} />
             </label>
@@ -66,6 +89,8 @@ export default function SettingsPage() {
               <input type="number" value={s.hrRest} onChange={e => upd({ hrRest: Number(e.target.value) })} />
             </label>
             <div className="full hint">
+              {s.weightKg > 0 && <>Aktuell {(s.ftp / s.weightKg).toFixed(2)} W/kg. </>}
+              {s.birthYear && <>Alter {new Date().getFullYear() - s.birthYear} — grobe HFmax-Faustformel: {220 - (new Date().getFullYear() - s.birthYear)} bpm. </>}
               Alle Programme sind in %FTP definiert — eine FTP-Änderung skaliert automatisch jedes Workout.
               {s.ftpHistory.length > 0 && <> Verlauf: {s.ftpHistory.slice(-5).map(h => `${h.ftp} W (${h.date})`).join(' · ')}</>}
             </div>
@@ -116,6 +141,38 @@ export default function SettingsPage() {
             <div className="full hint">
               Einmalig nötig: Unter <a style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => bridge.openExternal('https://www.strava.com/settings/api')}>strava.com/settings/api</a> eine
               App anlegen („Autorisierungs-Callback-Domain“: <b>localhost</b>), dann Client-ID und Secret hier eintragen und verbinden.
+            </div>
+          </div>
+        </div>
+
+        <div className="card settings-section">
+          <h3>⚖️ Withings-Waage</h3>
+          <div className="fields">
+            <label className="field">Client-ID
+              <input type="text" value={s.withings.clientId} onChange={e => upd({ withings: { ...s.withings, clientId: e.target.value.trim() } })} />
+            </label>
+            <label className="field">Client-Secret
+              <input type="password" value={s.withings.clientSecret} onChange={e => upd({ withings: { ...s.withings, clientSecret: e.target.value.trim() } })} />
+            </label>
+            <div className="full row">
+              {s.withings.refreshToken
+                ? <>
+                    <span style={{ color: 'var(--accent)' }}>✓ Verbunden</span>
+                    <button className="btn small" onClick={async () => { await bridge.withingsDisconnect(); setState({ settings: await bridge.getSettings() }) }}>Trennen</button>
+                  </>
+                : <button className="btn primary" disabled={withingsConnecting || !s.withings.clientId || !s.withings.clientSecret} onClick={withingsConnect}>
+                    {withingsConnecting ? 'Warte auf Withings …' : 'Mit Withings verbinden'}
+                  </button>}
+            </div>
+            <label className="full row" style={{ gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-dim)' }}>
+              <input type="checkbox" checked={s.withings.autoWeight} style={{ width: 'auto' }}
+                onChange={e => upd({ withings: { ...s.withings, autoWeight: e.target.checked } })} />
+              Gewicht automatisch von der Waage ins Leistungsprofil übernehmen
+            </label>
+            <div className="full hint">
+              Einmalig nötig: Unter <a style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => bridge.openExternal('https://developer.withings.com/dashboard/')}>developer.withings.com</a> eine
+              App anlegen (Callback-URL: <b>http://localhost:{s.httpPort}/withings/callback</b>), dann Client-ID und Secret hier eintragen und verbinden.
+              Die Waagendaten erscheinen unter „Körper“ und werden bei jedem App-Start synchronisiert.
             </div>
           </div>
         </div>

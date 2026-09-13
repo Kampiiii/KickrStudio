@@ -64,7 +64,33 @@ server.tool(
   {},
   async () => {
     const s = getSettings()
-    return json({ ftp: s.ftp, ftpHistory: s.ftpHistory, weightKg: s.weightKg, hrMax: s.hrMax, hrRest: s.hrRest, powerZones: s.powerZones })
+    return json({
+      ftp: s.ftp, ftpHistory: s.ftpHistory, weightKg: s.weightKg,
+      heightCm: s.heightCm ?? null, birthYear: s.birthYear ?? null,
+      age: s.birthYear ? new Date().getFullYear() - s.birthYear : null,
+      wattsPerKg: s.weightKg ? Math.round((s.ftp / s.weightKg) * 100) / 100 : null,
+      hrMax: s.hrMax, hrRest: s.hrRest, powerZones: s.powerZones,
+    })
+  }
+)
+
+server.tool(
+  'get_body_composition',
+  'Körperdaten von der Withings-Waage im Zeitverlauf: Gewicht, Körperfett %, Muskelmasse, Wasser, Knochenmasse (kg). Zum Verfolgen der Körperzusammensetzung neben dem Training. days begrenzt den Zeitraum (Default 180).',
+  { days: z.number().int().min(7).max(1095).optional() },
+  async ({ days }) => {
+    const all = readJson(path.join(DATA_DIR, 'body.json'), [])
+    const cutoff = Date.now() - (days || 180) * 86400000
+    const entries = all.filter(e => new Date(e.date).getTime() >= cutoff)
+    const latest = {}
+    for (const e of entries) for (const k of ['weightKg', 'fatPct', 'muscleKg', 'waterKg', 'boneKg']) if (e[k] != null) latest[k] = e[k]
+    const s = getSettings()
+    return json({
+      latest,
+      wattsPerKg: latest.weightKg && s.ftp ? Math.round((s.ftp / latest.weightKg) * 100) / 100 : null,
+      count: entries.length,
+      entries,
+    })
   }
 )
 

@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const store = require('./store.cjs')
 const strava = require('./strava.cjs')
+const withings = require('./withings.cjs')
 const { sessionToTcx } = require('./tcx.cjs')
 
 let win = null
@@ -114,6 +115,14 @@ ipcMain.handle('export:tcx', async (_e, sessionId) => {
   return { ok: true, filePath }
 })
 
+ipcMain.handle('withings:connect', () => withings.connect())
+ipcMain.handle('withings:disconnect', () => { withings.disconnect(); return true })
+ipcMain.handle('withings:sync', async () => {
+  try { return await withings.sync() }
+  catch (e) { return { ok: false, error: String(e.message || e) } }
+})
+ipcMain.handle('body:list', () => store.listBody())
+
 ipcMain.handle('strava:connect', () => strava.connect())
 ipcMain.handle('strava:disconnect', () => { strava.disconnect(); return true })
 ipcMain.handle('strava:upload', async (_e, sessionId) => {
@@ -142,9 +151,19 @@ function watchData() {
   try { fs.watch(store.DATA_DIR, (ev, f) => { if (f === 'queued-workout.json' || f === 'settings.json') debounced() }) } catch { }
 }
 
+// Beim Start still die Waage synchronisieren (falls verbunden)
+function autoSyncWithings() {
+  const s = store.getSettings()
+  if (!s.withings.refreshToken) return
+  withings.sync()
+    .then(() => { if (win && !win.isDestroyed()) win.webContents.send('data:changed') })
+    .catch(() => { })
+}
+
 app.whenReady().then(() => {
   createWindow()
   watchData()
+  autoSyncWithings()
 })
 
 app.on('window-all-closed', () => app.quit())

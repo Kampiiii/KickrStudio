@@ -14,6 +14,8 @@ const DEFAULT_SETTINGS = {
   ftp: 200,
   ftpHistory: [],
   weightKg: 78,
+  heightCm: null,
+  birthYear: null,
   hrMax: 185,
   hrRest: 55,
   powerZones: [
@@ -26,6 +28,7 @@ const DEFAULT_SETTINGS = {
     { name: 'Z7 Sprint', pctHigh: 999 },
   ],
   strava: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' },
+  withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
   devices: { trainer: null, hr: null },
   autoConnect: true,
@@ -43,7 +46,13 @@ function readJson(file, fallback) {
 function getSettings() {
   ensureDirs()
   const s = readJson(SETTINGS_FILE, {})
-  return { ...DEFAULT_SETTINGS, ...s, strava: { ...DEFAULT_SETTINGS.strava, ...(s.strava || {}) }, erg: { ...DEFAULT_SETTINGS.erg, ...(s.erg || {}) }, devices: { ...DEFAULT_SETTINGS.devices, ...(s.devices || {}) } }
+  return {
+    ...DEFAULT_SETTINGS, ...s,
+    strava: { ...DEFAULT_SETTINGS.strava, ...(s.strava || {}) },
+    withings: { ...DEFAULT_SETTINGS.withings, ...(s.withings || {}) },
+    erg: { ...DEFAULT_SETTINGS.erg, ...(s.erg || {}) },
+    devices: { ...DEFAULT_SETTINGS.devices, ...(s.devices || {}) },
+  }
 }
 
 function saveSettings(settings) {
@@ -110,6 +119,23 @@ function deleteSession(id) {
   if (fs.existsSync(f)) fs.unlinkSync(f)
 }
 
+const BODY_FILE = path.join(DATA_DIR, 'body.json')
+
+function listBody() {
+  return readJson(BODY_FILE, [])
+}
+
+// Neue Messungen einmischen (dedupliziert über den Zeitstempel)
+function mergeBody(entries) {
+  ensureDirs()
+  const existing = listBody()
+  const byDate = new Map(existing.map(e => [e.date, e]))
+  for (const e of entries) byDate.set(e.date, { ...byDate.get(e.date), ...e })
+  const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  fs.writeFileSync(BODY_FILE, JSON.stringify(merged, null, 2))
+  return merged
+}
+
 function getQueuedWorkout() {
   return readJson(QUEUE_FILE, null)
 }
@@ -126,4 +152,5 @@ module.exports = {
   listWorkouts, saveWorkout, deleteWorkout,
   listSessions, getSession, saveSession, updateSession, deleteSession,
   getQueuedWorkout, setQueuedWorkout,
+  listBody, mergeBody, BODY_FILE,
 }
