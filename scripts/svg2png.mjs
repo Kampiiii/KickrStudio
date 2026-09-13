@@ -20,7 +20,8 @@ function evaluate(expression) {
   })
 }
 
-for (const size of [512, 128]) {
+const sizes = process.argv[2] ? process.argv.slice(2).map(Number) : [512, 128]
+for (const size of sizes) {
   const expr = `(async () => {
     const img = new Image()
     img.src = 'data:image/svg+xml;base64,${svgB64}'

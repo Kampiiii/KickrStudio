@@ -20,6 +20,7 @@ function createWindow() {
     backgroundColor: '#0b0f14',
     autoHideMenuBar: true,
     title: 'KickrStudio',
+    icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
