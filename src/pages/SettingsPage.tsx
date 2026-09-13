@@ -214,6 +214,78 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <BackupSection />
+
+      </div>
+    </div>
+  )
+}
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function BackupSection() {
+  const app = useApp()
+  const [autos, setAutos] = useState<{ name: string; sizeBytes: number; mtime: string }[]>([])
+  const [creating, setCreating] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const busy = app.player.status === 'riding' || app.player.status === 'paused'
+
+  useEffect(() => { bridge.listAutoBackups().then(setAutos) }, [])
+
+  const create = async () => {
+    setCreating(true)
+    const r = await bridge.backupCreate()
+    setCreating(false)
+    if (r.ok) showToast(`Backup gespeichert (${fmtBytes(r.sizeBytes || 0)}): ${r.filePath}`)
+    else if (!r.canceled) showToast(r.error || 'Backup fehlgeschlagen', 'err')
+  }
+
+  const restore = async () => {
+    setConfirmRestore(false)
+    setRestoring(true)
+    const r = await bridge.backupRestore()
+    setRestoring(false)
+    if (r.ok) {
+      showToast('Wiederhergestellt — App wird neu gestartet …')
+      setTimeout(() => bridge.relaunchApp(), 1200)
+    } else if (!r.canceled) showToast(r.error || 'Wiederherstellung fehlgeschlagen', 'err')
+  }
+
+  const latest = autos[0]
+
+  return (
+    <div className="card settings-section">
+      <h3>🗄️ Backup</h3>
+      <div className="hint" style={{ marginBottom: 12 }}>
+        Bei jedem App-Start wird automatisch ein Backup aller Daten (Einstellungen, Workouts, Verlauf, Körperdaten, Plan)
+        neben dem Datenordner abgelegt — die letzten {10} Stände bleiben erhalten. Das schützt vor versehentlichem
+        Überschreiben, aber <b>nicht</b> vor Festplattenverlust: exportiere zusätzlich gelegentlich manuell an einen
+        anderen Ort (z.B. einen Cloud-Ordner wie OneDrive/Dropbox oder einen USB-Stick).
+      </div>
+      {latest && <div className="hint" style={{ marginBottom: 12 }}>
+        Letztes Auto-Backup: {new Date(latest.mtime).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ({fmtBytes(latest.sizeBytes)}) · {autos.length} gespeichert
+      </div>}
+      <div className="row wrap">
+        <button className="btn primary" disabled={creating} onClick={create}>
+          {creating ? 'Erstelle …' : '💾 Backup exportieren …'}
+        </button>
+        {!confirmRestore ? (
+          <button className="btn" disabled={restoring || busy} title={busy ? 'Erst Training beenden' : ''}
+            onClick={() => setConfirmRestore(true)}>♻ Backup wiederherstellen …</button>
+        ) : (
+          <>
+            <button className="btn danger" disabled={restoring} onClick={restore}>
+              {restoring ? 'Stelle wieder her …' : 'Wirklich überschreiben — Datei wählen'}
+            </button>
+            <button className="btn small" onClick={() => setConfirmRestore(false)}>Abbrechen</button>
+          </>
+        )}
+        <button className="btn small" onClick={() => bridge.openBackupFolder()}>Auto-Backup-Ordner öffnen</button>
       </div>
     </div>
   )

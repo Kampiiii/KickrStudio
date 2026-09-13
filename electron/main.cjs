@@ -4,6 +4,7 @@ const fs = require('fs')
 const store = require('./store.cjs')
 const strava = require('./strava.cjs')
 const withings = require('./withings.cjs')
+const backup = require('./backup.cjs')
 const { sessionToTcx } = require('./tcx.cjs')
 
 let win = null
@@ -122,6 +123,39 @@ ipcMain.handle('withings:sync', async () => {
   catch (e) { return { ok: false, error: String(e.message || e) } }
 })
 ipcMain.handle('body:list', () => store.listBody())
+
+// ---------- IPC: Backup ----------
+ipcMain.handle('backup:create', async () => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'KickrStudio-Backup speichern',
+    defaultPath: path.join(app.getPath('documents'), `kickrstudio-backup-${new Date().toISOString().slice(0, 10)}.zip`),
+    filters: [{ name: 'ZIP-Archiv', extensions: ['zip'] }],
+  })
+  if (canceled || !filePath) return { ok: false, canceled: true }
+  try {
+    const r = await backup.createBackupZip(filePath)
+    return { ok: true, filePath: r.path, sizeBytes: r.size }
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) }
+  }
+})
+ipcMain.handle('backup:restore', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'KickrStudio-Backup wiederherstellen',
+    properties: ['openFile'],
+    filters: [{ name: 'ZIP-Archiv', extensions: ['zip'] }],
+  })
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true }
+  try {
+    await backup.restoreBackupZip(filePaths[0])
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) }
+  }
+})
+ipcMain.handle('backup:listAuto', () => backup.listAutoBackups())
+ipcMain.handle('backup:openFolder', () => { fs.mkdirSync(backup.BACKUP_DIR, { recursive: true }); shell.openPath(backup.BACKUP_DIR) })
+ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('plan:list', () => store.listPlan())
 ipcMain.handle('plan:save', (_e, entry) => store.savePlanEntry(entry))
 ipcMain.handle('plan:delete', (_e, id) => { store.deletePlanEntry(id); return true })
@@ -167,6 +201,7 @@ app.whenReady().then(() => {
   createWindow()
   watchData()
   autoSyncWithings()
+  backup.autoBackup().catch(() => { })
 })
 
 app.on('window-all-closed', () => app.quit())

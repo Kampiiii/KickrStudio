@@ -94,6 +94,12 @@ export interface KickrBridge {
   openExternal(url: string): Promise<void>
   openDataDir(): Promise<void>
   keepAwake(on: boolean): Promise<boolean>
+
+  backupCreate(): Promise<{ ok: boolean; filePath?: string; sizeBytes?: number; error?: string; canceled?: boolean }>
+  backupRestore(): Promise<{ ok: boolean; error?: string; canceled?: boolean }>
+  listAutoBackups(): Promise<{ name: string; path: string; sizeBytes: number; mtime: string }[]>
+  openBackupFolder(): Promise<void>
+  relaunchApp(): Promise<void>
 }
 
 declare global {
@@ -167,6 +173,12 @@ const browserMock: KickrBridge = {
   openExternal: async (url) => { window.open(url, '_blank') },
   openDataDir: async () => {},
   keepAwake: async () => true,
+
+  backupCreate: async () => ({ ok: false, error: 'Backup nur in der Desktop-App verfügbar.' }),
+  backupRestore: async () => ({ ok: false, error: 'Backup nur in der Desktop-App verfügbar.' }),
+  listAutoBackups: async () => [],
+  openBackupFolder: async () => { },
+  relaunchApp: async () => { window.location.reload() },
 }
 
 export const bridge: KickrBridge = (typeof window !== 'undefined' && window.kickr) ? window.kickr : browserMock

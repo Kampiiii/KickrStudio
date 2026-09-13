@@ -47,4 +47,10 @@ contextBridge.exposeInMainWorld('kickr', {
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   openDataDir: () => ipcRenderer.invoke('app:openDataDir'),
   keepAwake: (on) => ipcRenderer.invoke('power:keepAwake', on),
+
+  backupCreate: () => ipcRenderer.invoke('backup:create'),
+  backupRestore: () => ipcRenderer.invoke('backup:restore'),
+  listAutoBackups: () => ipcRenderer.invoke('backup:listAuto'),
+  openBackupFolder: () => ipcRenderer.invoke('backup:openFolder'),
+  relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
 })
