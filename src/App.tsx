@@ -43,6 +43,27 @@ export default function App() {
     return bridge.onDataChanged(() => { loadAll() })
   }, [])
 
+  // Läuft als gepackte Datei (file://), aber die Bridge zum Main-Prozess kam nie an
+  // (Preload-Skript gescheitert) → statt still mit leeren Browser-Fallback-Daten
+  // weiterzumachen, klar und sichtbar warnen.
+  const bridgeMissing = window.location.protocol === 'file:' && !window.kickr
+  if (bridgeMissing) {
+    return (
+      <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div className="card" style={{ maxWidth: 480, textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
+          <h3 style={{ marginBottom: 10 }}>Verbindung zu den Daten fehlgeschlagen</h3>
+          <p className="hint" style={{ marginBottom: 16 }}>
+            Die Anzeige konnte sich nicht mit dem Datenspeicher verbinden. <b>Deine Einstellungen und dein Verlauf sind
+            davon nicht betroffen</b> — sie liegen unverändert auf der Festplatte. Bitte die App einmal komplett schließen
+            und neu starten.
+          </p>
+          <button className="btn primary" onClick={() => window.location.reload()}>Neu laden</button>
+        </div>
+      </div>
+    )
+  }
+
   if (!app.settings) return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}><div className="spinner" /></div>
 
   const riding = app.player.status === 'riding' || app.player.status === 'paused'

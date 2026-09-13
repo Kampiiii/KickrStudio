@@ -13,6 +13,19 @@ let psbId = null
 let playerStatus = 'idle'
 let allowClose = false
 
+// Diagnose-Log: hilft, einen einmalig auftretenden Lade-/Anzeigefehler beim
+// nächsten Mal konkret zu fassen, statt nur zu vermuten.
+const LOG_FILE = path.join(process.env.APPDATA || require('os').homedir(), 'kickr-studio', 'startup.log')
+function logDiag(msg) {
+  try {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
+    fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`)
+  } catch { }
+}
+process.on('uncaughtException', (err) => logDiag('MAIN uncaughtException: ' + (err?.stack || err)))
+process.on('unhandledRejection', (err) => logDiag('MAIN unhandledRejection: ' + (err?.stack || err)))
+logDiag(`App-Start (pid ${process.pid}, argv: ${process.argv.slice(1).join(' ')})`)
+
 // Nur eine laufende Instanz zulassen — zwei Fenster gleichzeitig auf denselben
 // Datenordner können sich beim Schreiben/Lesen von settings.json & Co. überschneiden
 // und dadurch kurzzeitig leer/unvollständig wirken. Ein zweiter Start fokussiert
@@ -64,6 +77,23 @@ function createWindow() {
     callback(permission === 'bluetooth' || permission === 'hid' || permission === 'notifications')
   })
   win.webContents.session.setPermissionCheckHandler(() => true)
+
+  // Diagnose: falls das Preload-Skript scheitert, käme window.kickr nie an und
+  // der Renderer würde (unsichtbar) auf leere Browser-Fallback-Daten zurückfallen.
+  win.webContents.on('preload-error', (_e, preloadPath, error) => {
+    logDiag('PRELOAD-ERROR: ' + preloadPath + ' :: ' + (error?.stack || error))
+  })
+  win.webContents.on('did-fail-load', (_e, errorCode, errorDescription, url) => {
+    logDiag(`DID-FAIL-LOAD: code=${errorCode} desc=${errorDescription} url=${url}`)
+  })
+  win.webContents.on('render-process-gone', (_e, details) => {
+    logDiag('RENDER-PROCESS-GONE: ' + JSON.stringify(details))
+  })
+  win.webContents.on('unresponsive', () => logDiag('RENDERER UNRESPONSIVE'))
+  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    if (level >= 2) logDiag(`CONSOLE[${level}]: ${message} (${sourceId}:${line})`)
+  })
+  win.webContents.once('did-finish-load', () => logDiag('did-finish-load ok'))
 
   // Vor versehentlichem Datenverlust warnen, wenn beim Schließen noch ein
   // Workout läuft (Aufzeichnung existiert bis "Beenden" nur im Renderer-Speicher).
