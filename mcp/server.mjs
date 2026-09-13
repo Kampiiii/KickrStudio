@@ -23,12 +23,12 @@ const readJson = (file, fallback) => {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 
-// Atomar schreiben (temp + rename), damit die gleichzeitig laufende Desktop-App
-// (fs.watch + eigene Reads) niemals eine halb geschriebene Datei sieht.
+// War: Temp-Datei + Rename. Windows Defenders Ransomware-Heuristik stuft dieses
+// Muster (Temp-Datei schreiben, über die Originaldatei umbenennen) als
+// verdächtig ein und blockiert danach den Zugriff der App auf genau diese Datei
+// — sichtbar bleibt sie nur für andere Prozesse. Direktes Schreiben umgeht das.
 function writeJsonAtomic(file, data) {
-  const tmp = file + '.tmp-' + process.pid + '-' + Date.now()
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2))
-  fs.renameSync(tmp, file)
+  fs.writeFileSync(file, JSON.stringify(data, null, 2))
 }
 
 const getSettings = () => readJson(SETTINGS_FILE, { ftp: 200, ftpHistory: [], weightKg: 78, hrMax: 185, powerZones: [] })

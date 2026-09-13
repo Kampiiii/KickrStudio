@@ -43,13 +43,16 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 
-// Schreibt über eine temporäre Datei + atomares Rename, damit ein gleichzeitiger
-// Lesevorgang (z.B. vom MCP-Server oder einem zweiten Fenster) niemals eine
-// halb geschriebene, kaputte JSON-Datei zu sehen bekommt.
+// War: Temp-Datei + Rename (klassisches atomares Schreiben). Musste zurückgebaut
+// werden — Windows Defenders Verhaltenserkennung stuft "in Temp-Datei schreiben,
+// dann über die Originaldatei umbenennen" als typisches Ransomware-Muster ein und
+// blockiert danach genau für UNSERE (unsignierte) App den Zugriff auf die
+// betroffene Datei, obwohl sie auf der Platte unverändert vorhanden bleibt —
+// sichtbar für jeden anderen Prozess (PowerShell etc.), nur nicht mehr für uns.
+// Direktes Schreiben umgeht dieses Muster; Backups fangen das (winzige) Risiko
+// eines Absturzes mitten im Schreibvorgang ab.
 function writeJsonAtomic(file, data, pretty = true) {
-  const tmp = file + '.tmp-' + process.pid + '-' + Date.now()
-  fs.writeFileSync(tmp, pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data))
-  fs.renameSync(tmp, file)
+  fs.writeFileSync(file, pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data))
 }
 
 function getSettings() {

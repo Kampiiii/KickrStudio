@@ -32,6 +32,22 @@ function logDiag(msg) {
 process.on('uncaughtException', (err) => logDiag('MAIN uncaughtException: ' + (err?.stack || err)))
 process.on('unhandledRejection', (err) => logDiag('MAIN unhandledRejection: ' + (err?.stack || err)))
 logDiag(`App-Start (pid ${process.pid}, argv: ${process.argv.slice(1).join(' ')})`)
+logDiag(`ENV RAW: APPDATA=${JSON.stringify(process.env.APPDATA)} USERPROFILE=${JSON.stringify(process.env.USERPROFILE)} LOCALAPPDATA=${JSON.stringify(process.env.LOCALAPPDATA)}`)
+logDiag(`DATA_DIR RAW: ${JSON.stringify(store.DATA_DIR)} (Länge ${store.DATA_DIR.length})`)
+try {
+  const parentDir = path.dirname(store.DATA_DIR)
+  const parentExists = fs.existsSync(parentDir)
+  const parentListing = parentExists ? fs.readdirSync(parentDir).filter(n => n.toLowerCase().includes('kickr')) : []
+  logDiag(`Elternordner ${JSON.stringify(parentDir)}: existiert=${parentExists} kickr-Eintraege=${JSON.stringify(parentListing)}`)
+  const selfExists = fs.existsSync(store.DATA_DIR)
+  logDiag(`DATA_DIR selbst existiert (fs.existsSync direkt): ${selfExists}`)
+  if (selfExists) {
+    const ownListing = fs.readdirSync(store.DATA_DIR)
+    logDiag(`DATA_DIR Inhalt: ${JSON.stringify(ownListing)}`)
+  }
+} catch (e) {
+  logDiag('Elternordner-Diagnose Fehler: ' + (e?.stack || e))
+}
 
 // Nur eine laufende Instanz zulassen — zwei Fenster gleichzeitig auf denselben
 // Datenordner können sich beim Schreiben/Lesen von settings.json & Co. überschneiden
