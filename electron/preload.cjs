@@ -58,4 +58,7 @@ contextBridge.exposeInMainWorld('kickr', {
   listAutoBackups: () => ipcRenderer.invoke('backup:listAuto'),
   openBackupFolder: () => ipcRenderer.invoke('backup:openFolder'),
   relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
+
+  getDebugLog: () => ipcRenderer.invoke('debug:getLog'),
+  openLogFolder: () => ipcRenderer.invoke('debug:openLogFolder'),
 })

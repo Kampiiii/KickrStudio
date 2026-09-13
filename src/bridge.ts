@@ -113,6 +113,9 @@ export interface KickrBridge {
   listAutoBackups(): Promise<{ name: string; path: string; sizeBytes: number; mtime: string }[]>
   openBackupFolder(): Promise<void>
   relaunchApp(): Promise<void>
+
+  getDebugLog(): Promise<{ startupLog: string; fallbackLog: string; dataDir: string; logFile: string; appPath: string; isPackaged: boolean; versions: Record<string, string> }>
+  openLogFolder(): Promise<void>
 }
 
 declare global {
@@ -197,6 +200,9 @@ const browserMock: KickrBridge = {
   listAutoBackups: async () => [],
   openBackupFolder: async () => { },
   relaunchApp: async () => { window.location.reload() },
+
+  getDebugLog: async () => ({ startupLog: '(nur in der Desktop-App verfügbar)', fallbackLog: '', dataDir: '(Browser-Modus)', logFile: '', appPath: '', isPackaged: false, versions: {} }),
+  openLogFolder: async () => { },
 }
 
 export const bridge: KickrBridge = (typeof window !== 'undefined' && window.kickr) ? window.kickr : browserMock

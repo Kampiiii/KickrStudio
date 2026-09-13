@@ -220,6 +220,20 @@ ipcMain.handle('withings:sync', async () => {
 ipcMain.handle('body:list', () => store.listBody())
 
 // ---------- IPC: Backup ----------
+ipcMain.handle('debug:getLog', () => {
+  const read = (f) => { try { return fs.readFileSync(f, 'utf8') } catch { return '' } }
+  return {
+    startupLog: read(LOG_FILE),
+    fallbackLog: read(FALLBACK_LOG_FILE),
+    dataDir: store.DATA_DIR,
+    logFile: LOG_FILE,
+    appPath: app.getAppPath(),
+    isPackaged: app.isPackaged,
+    versions: process.versions,
+  }
+})
+ipcMain.handle('debug:openLogFolder', () => shell.showItemInFolder(LOG_FILE))
+
 ipcMain.handle('backup:create', async () => {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'KickrStudio-Backup speichern',

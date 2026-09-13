@@ -7,6 +7,7 @@ import WorkoutsPage, { loadAllWorkouts } from './pages/WorkoutsPage'
 import HistoryPage from './pages/HistoryPage'
 import BodyPage from './pages/BodyPage'
 import SettingsPage from './pages/SettingsPage'
+import DebugPage from './pages/DebugPage'
 import DevicePicker from './components/DevicePicker'
 import { fmtDuration } from './engine/model'
 
@@ -17,6 +18,7 @@ const NAV: { page: Page; label: string; ico: string }[] = [
   { page: 'history', label: 'Verlauf', ico: '📈' },
   { page: 'body', label: 'Körper', ico: '⚖️' },
   { page: 'settings', label: 'Einstellungen', ico: '⚙️' },
+  { page: 'debug', label: 'Debug', ico: '🐞' },
 ]
 
 async function loadAll() {
@@ -91,6 +93,7 @@ export default function App() {
         {app.page === 'history' && <HistoryPage />}
         {app.page === 'body' && <BodyPage />}
         {app.page === 'settings' && <SettingsPage />}
+        {app.page === 'debug' && <DebugPage />}
       </div>
       <DevicePicker />
       {app.toast && <div className={`toast ${app.toast.kind}`}>{app.toast.text}</div>}

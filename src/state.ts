@@ -5,7 +5,7 @@ import type { Sample } from './engine/metrics'
 import type { Settings, Session, SessionMeta, QueuedWorkout, PlanEntry, DraftSession } from './bridge'
 import type { ConnState } from './ble/types'
 
-export type Page = 'train' | 'plan' | 'workouts' | 'history' | 'body' | 'settings'
+export type Page = 'train' | 'plan' | 'workouts' | 'history' | 'body' | 'settings' | 'debug'
 
 export interface Telemetry {
   power: number | null
