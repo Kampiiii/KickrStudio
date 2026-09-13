@@ -8,6 +8,7 @@ import { bridge, type Session } from '../bridge'
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let lastSentTarget = -1
 let lastSentAt = 0
+const DRAFT_SAVE_INTERVAL_SEC = 15
 
 export function startWorkout(workout: Workout) {
   const st = getState()
@@ -30,16 +31,19 @@ export function startWorkout(workout: Workout) {
   lastSentTarget = -1
   lastSentAt = 0
   bridge.keepAwake(true)
+  bridge.notifyPlayerStatus('riding')
   if (tickTimer) clearInterval(tickTimer)
   tickTimer = setInterval(tick, 1000)
 }
 
 export function pauseWorkout(byDisconnect = false) {
   setState(st => ({ player: { ...st.player, status: 'paused', pausedByDisconnect: byDisconnect } }))
+  bridge.notifyPlayerStatus('paused')
 }
 
 export function resumeWorkout() {
   setState(st => ({ player: { ...st.player, status: 'riding', pausedByDisconnect: false } }))
+  bridge.notifyPlayerStatus('riding')
   lastSentTarget = -1 // Sollwert sofort neu senden
 }
 
@@ -106,6 +110,19 @@ function tick() {
     player: { ...s.player, elapsed, currentTarget: targetW, samples: [...s.player.samples, sample] },
   }))
 
+  // Zwischenstand sichern — falls die App unerwartet schließt/abstürzt, geht die
+  // Aufzeichnung dann nicht komplett verloren (Wiederherstellung beim nächsten Start).
+  if (elapsed > 0 && elapsed % DRAFT_SAVE_INTERVAL_SEC === 0) {
+    const st2 = getState()
+    bridge.saveDraftSession({
+      name: p.workout?.name || 'Workout',
+      workoutId: p.workout?.id,
+      startedAt: p.startedAt || new Date().toISOString(),
+      ftpAtTime: st2.settings?.ftp || 200,
+      samples: st2.player.samples,
+    })
+  }
+
   if (done) finishWorkout()
 }
 
@@ -114,6 +131,8 @@ export async function finishWorkout() {
   const p = st.player
   if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
   bridge.keepAwake(false)
+  bridge.notifyPlayerStatus('idle')
+  bridge.clearDraftSession()
   setTargetPower(0)
 
   if (p.samples.length < 10) {

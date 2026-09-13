@@ -43,6 +43,15 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 
+// Schreibt über eine temporäre Datei + atomares Rename, damit ein gleichzeitiger
+// Lesevorgang (z.B. vom MCP-Server oder einem zweiten Fenster) niemals eine
+// halb geschriebene, kaputte JSON-Datei zu sehen bekommt.
+function writeJsonAtomic(file, data, pretty = true) {
+  const tmp = file + '.tmp-' + process.pid + '-' + Date.now()
+  fs.writeFileSync(tmp, pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data))
+  fs.renameSync(tmp, file)
+}
+
 function getSettings() {
   ensureDirs()
   const s = readJson(SETTINGS_FILE, {})
@@ -57,7 +66,7 @@ function getSettings() {
 
 function saveSettings(settings) {
   ensureDirs()
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2))
+  writeJsonAtomic(SETTINGS_FILE, settings)
 }
 
 function slug(name) {
@@ -73,7 +82,7 @@ function listWorkouts() {
 function saveWorkout(workout) {
   ensureDirs()
   if (!workout.id) workout.id = slug(workout.name) + '-' + Date.now().toString(36)
-  fs.writeFileSync(path.join(WORKOUTS_DIR, workout.id + '.json'), JSON.stringify(workout, null, 2))
+  writeJsonAtomic(path.join(WORKOUTS_DIR, workout.id + '.json'), workout)
   return workout
 }
 
@@ -102,7 +111,7 @@ function getSession(id) {
 function saveSession(session) {
   ensureDirs()
   if (!session.id) session.id = (session.startedAt || new Date().toISOString()).replace(/[:.]/g, '-') + '__' + slug(session.name)
-  fs.writeFileSync(path.join(HISTORY_DIR, session.id + '.json'), JSON.stringify(session))
+  writeJsonAtomic(path.join(HISTORY_DIR, session.id + '.json'), session, false)
   return session
 }
 
@@ -110,7 +119,7 @@ function updateSession(id, patch) {
   const s = getSession(id)
   if (!s) return null
   const merged = { ...s, ...patch }
-  fs.writeFileSync(path.join(HISTORY_DIR, id + '.json'), JSON.stringify(merged))
+  writeJsonAtomic(path.join(HISTORY_DIR, id + '.json'), merged, false)
   return merged
 }
 
@@ -131,14 +140,14 @@ function savePlanEntry(entry) {
   const all = listPlan().filter(e => e.id !== entry.id)
   all.push(entry)
   all.sort((a, b) => a.date.localeCompare(b.date))
-  fs.writeFileSync(PLAN_FILE, JSON.stringify(all, null, 2))
+  writeJsonAtomic(PLAN_FILE, all)
   return entry
 }
 
 function deletePlanEntry(id) {
   ensureDirs()
   const all = listPlan().filter(e => e.id !== id)
-  fs.writeFileSync(PLAN_FILE, JSON.stringify(all, null, 2))
+  writeJsonAtomic(PLAN_FILE, all)
 }
 
 const BODY_FILE = path.join(DATA_DIR, 'body.json')
@@ -154,8 +163,26 @@ function mergeBody(entries) {
   const byDate = new Map(existing.map(e => [e.date, e]))
   for (const e of entries) byDate.set(e.date, { ...byDate.get(e.date), ...e })
   const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
-  fs.writeFileSync(BODY_FILE, JSON.stringify(merged, null, 2))
+  writeJsonAtomic(BODY_FILE, merged)
   return merged
+}
+
+const DRAFT_FILE = path.join(DATA_DIR, 'draft-session.json')
+
+// Zwischenspeicher einer laufenden Einheit (alle ~15 s aktualisiert), damit ein
+// abgebrochener Vorgang (Absturz, versehentliches Schließen) nicht komplett
+// verloren geht, sondern beim nächsten Start zur Wiederherstellung angeboten wird.
+function getDraftSession() {
+  return readJson(DRAFT_FILE, null)
+}
+
+function saveDraftSession(draft) {
+  ensureDirs()
+  writeJsonAtomic(DRAFT_FILE, draft, false)
+}
+
+function clearDraftSession() {
+  try { fs.unlinkSync(DRAFT_FILE) } catch { }
 }
 
 function getQueuedWorkout() {
@@ -165,7 +192,7 @@ function getQueuedWorkout() {
 function setQueuedWorkout(entry) {
   ensureDirs()
   if (entry === null) { try { fs.unlinkSync(QUEUE_FILE) } catch { } }
-  else fs.writeFileSync(QUEUE_FILE, JSON.stringify(entry, null, 2))
+  else writeJsonAtomic(QUEUE_FILE, entry)
 }
 
 module.exports = {
@@ -176,4 +203,5 @@ module.exports = {
   getQueuedWorkout, setQueuedWorkout,
   listBody, mergeBody, BODY_FILE,
   listPlan, savePlanEntry, deletePlanEntry, PLAN_FILE,
+  getDraftSession, saveDraftSession, clearDraftSession, DRAFT_FILE,
 }

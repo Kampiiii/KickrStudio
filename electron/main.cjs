@@ -10,6 +10,25 @@ const { sessionToTcx } = require('./tcx.cjs')
 let win = null
 let bleSelectCallback = null
 let psbId = null
+let playerStatus = 'idle'
+let allowClose = false
+
+// Nur eine laufende Instanz zulassen — zwei Fenster gleichzeitig auf denselben
+// Datenordner können sich beim Schreiben/Lesen von settings.json & Co. überschneiden
+// und dadurch kurzzeitig leer/unvollständig wirken. Ein zweiter Start fokussiert
+// stattdessen einfach das bestehende Fenster.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+  return
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -46,6 +65,23 @@ function createWindow() {
   })
   win.webContents.session.setPermissionCheckHandler(() => true)
 
+  // Vor versehentlichem Datenverlust warnen, wenn beim Schließen noch ein
+  // Workout läuft (Aufzeichnung existiert bis "Beenden" nur im Renderer-Speicher).
+  win.on('close', (e) => {
+    if (allowClose || (playerStatus !== 'riding' && playerStatus !== 'paused')) return
+    e.preventDefault()
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      buttons: ['Abbrechen', 'Trotzdem schließen'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Workout läuft noch',
+      message: 'Ein Workout läuft noch und ist noch nicht gespeichert.',
+      detail: 'Beende das Workout zuerst über „■ Beenden", damit die Aufzeichnung gespeichert wird. Ein Zwischenstand wurde automatisch gesichert, falls doch etwas schiefgeht.',
+    })
+    if (choice === 1) { allowClose = true; win.close() }
+  })
+
   if (process.env.VITE_DEV) {
     const tryLoad = (attempt = 0) => {
       win.loadURL('http://localhost:5173').catch(() => {
@@ -76,6 +112,11 @@ ipcMain.handle('sessions:list', () => store.listSessions())
 ipcMain.handle('sessions:get', (_e, id) => store.getSession(id))
 ipcMain.handle('sessions:save', (_e, s) => store.saveSession(s))
 ipcMain.handle('sessions:delete', (_e, id) => { store.deleteSession(id); return true })
+ipcMain.on('player:status', (_e, status) => { playerStatus = status })
+ipcMain.handle('draft:get', () => store.getDraftSession())
+ipcMain.handle('draft:save', (_e, draft) => { store.saveDraftSession(draft); return true })
+ipcMain.handle('draft:clear', () => { store.clearDraftSession(); return true })
+
 ipcMain.handle('queue:get', () => store.getQueuedWorkout())
 ipcMain.handle('builtins:snapshot', (_e, list) => {
   // Snapshot der eingebauten Programme für den MCP-Server (liest nur Dateien)

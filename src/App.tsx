@@ -36,6 +36,9 @@ export default function App() {
 
   useEffect(() => {
     loadAll()
+    // Einmalig prüfen, ob eine unterbrochene Einheit (Absturz/Schließen während
+    // des Trainings) zur Wiederherstellung bereitliegt.
+    bridge.getDraftSession().then(draft => { if (draft) setState({ recoveredDraft: draft }) })
     // MCP-Server oder andere Prozesse haben Dateien geändert → neu laden
     return bridge.onDataChanged(() => { loadAll() })
   }, [])

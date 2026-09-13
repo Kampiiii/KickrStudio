@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('kickr', {
   getSession: (id) => ipcRenderer.invoke('sessions:get', id),
   saveSession: (s) => ipcRenderer.invoke('sessions:save', s),
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
+  notifyPlayerStatus: (status) => ipcRenderer.send('player:status', status),
+  getDraftSession: () => ipcRenderer.invoke('draft:get'),
+  saveDraftSession: (draft) => ipcRenderer.invoke('draft:save', draft),
+  clearDraftSession: () => ipcRenderer.invoke('draft:clear'),
+
   getQueuedWorkout: () => ipcRenderer.invoke('queue:get'),
   snapshotBuiltins: (list) => ipcRenderer.invoke('builtins:snapshot', list),
   clearQueuedWorkout: () => ipcRenderer.invoke('queue:clear'),

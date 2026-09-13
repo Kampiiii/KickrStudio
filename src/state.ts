@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react'
 import type { Workout, Step } from './engine/model'
 import type { Sample } from './engine/metrics'
-import type { Settings, Session, SessionMeta, QueuedWorkout, PlanEntry } from './bridge'
+import type { Settings, Session, SessionMeta, QueuedWorkout, PlanEntry, DraftSession } from './bridge'
 import type { ConnState } from './ble/types'
 
 export type Page = 'train' | 'plan' | 'workouts' | 'history' | 'body' | 'settings'
@@ -35,6 +35,7 @@ export interface AppState {
   sessions: SessionMeta[]
   queued: QueuedWorkout | null
   plan: PlanEntry[]
+  recoveredDraft: DraftSession | null
   trainerState: ConnState
   trainerName: string
   trainerControl: boolean
@@ -58,6 +59,7 @@ const initialState: AppState = {
   sessions: [],
   queued: null,
   plan: [],
+  recoveredDraft: null,
   trainerState: 'disconnected',
   trainerName: '',
   trainerControl: false,

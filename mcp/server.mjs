@@ -23,6 +23,14 @@ const readJson = (file, fallback) => {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 
+// Atomar schreiben (temp + rename), damit die gleichzeitig laufende Desktop-App
+// (fs.watch + eigene Reads) niemals eine halb geschriebene Datei sieht.
+function writeJsonAtomic(file, data) {
+  const tmp = file + '.tmp-' + process.pid + '-' + Date.now()
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2))
+  fs.renameSync(tmp, file)
+}
+
 const getSettings = () => readJson(SETTINGS_FILE, { ftp: 200, ftpHistory: [], weightKg: 78, hrMax: 185, powerZones: [] })
 
 const listSessionMetas = () =>
@@ -103,7 +111,7 @@ server.tool(
     const s = getSettings()
     s.ftp = ftp
     s.ftpHistory = [...(s.ftpHistory || []), { date: new Date().toISOString().slice(0, 10), ftp }]
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2))
+    writeJsonAtomic(SETTINGS_FILE, s)
     return json({ ok: true, ftp })
   }
 )
@@ -171,7 +179,7 @@ server.tool(
   async ({ name, description, tags, segments }) => {
     const id = name.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) + '-' + Date.now().toString(36)
     const workout = { id, name, description: description || '', tags: tags || [], source: 'claude', segments }
-    fs.writeFileSync(path.join(WORKOUTS_DIR, id + '.json'), JSON.stringify(workout, null, 2))
+    writeJsonAtomic(path.join(WORKOUTS_DIR, id + '.json'), workout)
     return json({ ok: true, id, durationSec: workoutDuration(segments) })
   }
 )
@@ -193,17 +201,17 @@ server.tool(
     } else if (name && segments && segments.length) {
       const id = name.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').slice(0, 60) + '-' + Date.now().toString(36)
       workout = { id, name, description: note || '', tags: ['Claude'], source: 'claude', segments }
-      fs.writeFileSync(path.join(WORKOUTS_DIR, id + '.json'), JSON.stringify(workout, null, 2))
+      writeJsonAtomic(path.join(WORKOUTS_DIR, id + '.json'), workout)
     } else {
       return json({ error: 'Entweder workout_id oder name+segments angeben.' })
     }
-    fs.writeFileSync(QUEUE_FILE, JSON.stringify({ workout, note: note || '', queuedAt: new Date().toISOString() }, null, 2))
+    writeJsonAtomic(QUEUE_FILE, { workout, note: note || '', queuedAt: new Date().toISOString() })
     return json({ ok: true, queued: workout.name })
   }
 )
 
 const listPlan = () => readJson(PLAN_FILE, []).sort((a, b) => a.date.localeCompare(b.date))
-function writePlan(entries) { fs.writeFileSync(PLAN_FILE, JSON.stringify(entries, null, 2)) }
+function writePlan(entries) { writeJsonAtomic(PLAN_FILE, entries) }
 const dateRe = /^\d{4}-\d{2}-\d{2}$/
 
 server.tool(
@@ -243,7 +251,7 @@ server.tool(
       } else if (name && segments && segments.length) {
         const newId = name.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').slice(0, 60) + '-' + Date.now().toString(36)
         const workout = { id: newId, name, description: note || '', tags: ['Claude'], source: 'claude', segments }
-        fs.writeFileSync(path.join(WORKOUTS_DIR, newId + '.json'), JSON.stringify(workout, null, 2))
+        writeJsonAtomic(path.join(WORKOUTS_DIR, newId + '.json'), workout)
         workoutName = name
         usedWorkoutId = newId
       } else {

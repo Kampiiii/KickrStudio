@@ -42,6 +42,14 @@ export interface Session extends SessionMeta {
 
 export interface QueuedWorkout { workout: Workout; note?: string; queuedAt: string }
 
+export interface DraftSession {
+  name: string
+  workoutId?: string
+  startedAt: string
+  ftpAtTime: number
+  samples: { t: number; power: number; hr: number | null; cadence: number | null; target: number }[]
+}
+
 export interface PlanEntry {
   id: string
   date: string // YYYY-MM-DD
@@ -75,6 +83,11 @@ export interface KickrBridge {
   getSession(id: string): Promise<Session | null>
   saveSession(s: Session): Promise<Session>
   deleteSession(id: string): Promise<boolean>
+  notifyPlayerStatus(status: string): void
+  getDraftSession(): Promise<DraftSession | null>
+  saveDraftSession(draft: DraftSession): Promise<boolean>
+  clearDraftSession(): Promise<boolean>
+
   getQueuedWorkout(): Promise<QueuedWorkout | null>
   clearQueuedWorkout(): Promise<boolean>
   snapshotBuiltins?(list: Workout[]): Promise<boolean>
@@ -150,6 +163,11 @@ const browserMock: KickrBridge = {
     all.push(s); lsSet('ks-sessions', all); return s
   },
   deleteSession: async (id) => { lsSet('ks-sessions', ls<Session[]>('ks-sessions', []).filter(x => x.id !== id)); return true },
+  notifyPlayerStatus: () => { },
+  getDraftSession: async () => null,
+  saveDraftSession: async () => true,
+  clearDraftSession: async () => true,
+
   getQueuedWorkout: async () => ls('ks-queued', null),
   clearQueuedWorkout: async () => { localStorage.removeItem('ks-queued'); return true },
   onDataChanged: () => () => {},

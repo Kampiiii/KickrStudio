@@ -4,6 +4,7 @@ import { bridge } from '../bridge'
 import { connectTrainer, connectHr, disconnectTrainer, disconnectHr } from '../ble/manager'
 import { startWorkout, pauseWorkout, resumeWorkout, skipSegment, trim, finishWorkout, dismissSummary, setFreerideTarget } from '../engine/player'
 import { expandSegments, fmtDuration, targetPctAt, zoneColor, workoutDuration } from '../engine/model'
+import { computeSummary } from '../engine/metrics'
 import WorkoutGraph from '../components/WorkoutGraph'
 import SummaryView from '../components/SummaryView'
 
@@ -42,6 +43,8 @@ function IdleView() {
   return (
     <div>
       <div className="page-title">Training <span className="sub">FTP {settings!.ftp} W</span></div>
+
+      {app.recoveredDraft && <RecoveredDraftBanner draft={app.recoveredDraft} />}
 
       {queued && (
         <div className="queued-banner">
@@ -92,6 +95,43 @@ function IdleView() {
         >▶ Workout starten</button>
       </div>
       {!trainerReady && <div className="hint">Verbinde zuerst den Kickr (oder den Simulator zum Testen), dann kann es losgehen.</div>}
+    </div>
+  )
+}
+
+function RecoveredDraftBanner({ draft }: { draft: import('../bridge').DraftSession }) {
+  const app = useApp()
+  const [busy, setBusy] = useState(false)
+  const startedNice = new Date(draft.startedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  const restore = async () => {
+    setBusy(true)
+    const settings = app.settings!
+    const summary = computeSummary(draft.samples, draft.ftpAtTime, settings.powerZones)
+    await bridge.saveSession({
+      id: '', name: draft.name + ' (wiederhergestellt)', workoutId: draft.workoutId,
+      startedAt: draft.startedAt, durationSec: draft.samples.length, ftpAtTime: draft.ftpAtTime,
+      summary, samples: draft.samples,
+    })
+    await bridge.clearDraftSession()
+    setState({ recoveredDraft: null, sessions: await bridge.listSessions() })
+    showToast('Einheit wiederhergestellt und im Verlauf gespeichert.')
+  }
+
+  const discard = async () => {
+    await bridge.clearDraftSession()
+    setState({ recoveredDraft: null })
+  }
+
+  return (
+    <div className="banner" style={{ borderColor: 'var(--accent-dim)', color: 'var(--text)', background: 'rgba(62,207,142,0.08)' }}>
+      <span style={{ fontSize: 18 }}>💾</span>
+      <div style={{ flex: 1 }}>
+        <b>Unterbrochene Einheit gefunden: {draft.name}</b>
+        <div className="hint">Gestartet {startedNice} · {fmtDuration(draft.samples.length)} aufgezeichnet, bevor die App unerwartet geschlossen wurde.</div>
+      </div>
+      <button className="btn small primary" disabled={busy} onClick={restore}>Wiederherstellen</button>
+      <button className="btn small" disabled={busy} onClick={discard}>Verwerfen</button>
     </div>
   )
 }
