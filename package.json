@@ -1,0 +1,32 @@
+{
+  "name": "kickr-studio",
+  "productName": "KickrStudio",
+  "version": "0.1.0",
+  "description": "Desktop-Trainingsapp für den Wahoo Kickr: ERG-Workouts, Live-Daten, Strava-Upload, MCP-Schnittstelle für Claude",
+  "main": "electron/main.cjs",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"cross-env VITE_DEV=1 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "mcp": "node mcp/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "uplot": "^1.6.31",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/web-bluetooth": "^0.0.21",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  }
+}
