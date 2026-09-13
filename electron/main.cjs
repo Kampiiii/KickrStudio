@@ -15,12 +15,19 @@ let allowClose = false
 
 // Diagnose-Log: hilft, einen einmalig auftretenden Lade-/Anzeigefehler beim
 // nächsten Mal konkret zu fassen, statt nur zu vermuten.
-const LOG_FILE = path.join(process.env.APPDATA || require('os').homedir(), 'kickr-studio', 'startup.log')
+const os = require('os')
+const LOG_FILE = path.join(process.env.APPDATA || os.homedir(), 'kickr-studio', 'startup.log')
+const FALLBACK_LOG_FILE = path.join(os.tmpdir(), 'kickrstudio-startup-fallback.log')
 function logDiag(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`
   try {
     fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
-    fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`)
-  } catch { }
+    fs.appendFileSync(LOG_FILE, line)
+  } catch (e1) {
+    // Falls der reguläre Pfad aus irgendeinem Grund nicht beschreibbar ist,
+    // trotzdem etwas festhalten statt komplett stumm zu bleiben.
+    try { fs.appendFileSync(FALLBACK_LOG_FILE, line + '  (Hauptpfad fehlgeschlagen: ' + (e1?.message || e1) + ')\n') } catch { }
+  }
 }
 process.on('uncaughtException', (err) => logDiag('MAIN uncaughtException: ' + (err?.stack || err)))
 process.on('unhandledRejection', (err) => logDiag('MAIN unhandledRejection: ' + (err?.stack || err)))
@@ -133,7 +140,11 @@ ipcMain.on('ble:cancel', () => {
 })
 
 // ---------- IPC: Daten ----------
-ipcMain.handle('settings:get', () => store.getSettings())
+ipcMain.handle('settings:get', () => {
+  const s = store.getSettings()
+  logDiag(`settings:get → ftp=${s.ftp} strava=${!!s.strava?.refreshToken} withings=${!!s.withings?.refreshToken} dataDir=${store.DATA_DIR}`)
+  return s
+})
 ipcMain.handle('settings:set', (_e, s) => { store.saveSettings(s); return store.getSettings() })
 ipcMain.handle('workouts:list', () => store.listWorkouts())
 ipcMain.handle('workouts:save', (_e, w) => store.saveWorkout(w))
@@ -269,11 +280,13 @@ function autoSyncWithings() {
     .catch(() => { })
 }
 
+logDiag('vor app.whenReady()')
 app.whenReady().then(() => {
+  logDiag('app.whenReady erreicht')
   createWindow()
   watchData()
   autoSyncWithings()
-  backup.autoBackup().catch(() => { })
-})
+  backup.autoBackup().then(() => logDiag('autoBackup ok')).catch((e) => logDiag('autoBackup Fehler: ' + (e?.message || e)))
+}).catch((e) => logDiag('whenReady Fehler: ' + (e?.stack || e)))
 
 app.on('window-all-closed', () => app.quit())
