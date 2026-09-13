@@ -90,3 +90,5 @@ Für echte Sicherheit zusätzlich unter Einstellungen → Backup gelegentlich **
 
 - Der Kickr darf nicht gleichzeitig von anderen Apps (Wahoo-App, Zwift) per BLE gesteuert werden — es ist nur eine Steuer-Verbindung möglich.
 - Bluetooth am Notebook muss aktiviert sein (Windows-Einstellungen → Bluetooth).
+- Die App lässt sich nur einmal gleichzeitig öffnen (Doppelklick während des Ladens fokussiert nur das bestehende Fenster) — verhindert, dass zwei Fenster sich beim Schreiben der Daten in die Quere kommen.
+- Beim Schließen während eines laufenden Workouts warnt die App, bevor die Aufzeichnung verloren geht. Zusätzlich wird der Zwischenstand alle 15 s gesichert — nach einem Absturz/Force-Quit bietet die App beim nächsten Start eine Wiederherstellung an.
