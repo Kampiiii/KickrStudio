@@ -122,6 +122,9 @@ ipcMain.handle('withings:sync', async () => {
   catch (e) { return { ok: false, error: String(e.message || e) } }
 })
 ipcMain.handle('body:list', () => store.listBody())
+ipcMain.handle('plan:list', () => store.listPlan())
+ipcMain.handle('plan:save', (_e, entry) => store.savePlanEntry(entry))
+ipcMain.handle('plan:delete', (_e, id) => { store.deletePlanEntry(id); return true })
 
 ipcMain.handle('strava:connect', () => strava.connect())
 ipcMain.handle('strava:disconnect', () => { strava.disconnect(); return true })
@@ -148,7 +151,7 @@ function watchData() {
   let t = null
   const debounced = () => { clearTimeout(t); t = setTimeout(notify, 300) }
   try { fs.watch(store.WORKOUTS_DIR, debounced) } catch { }
-  try { fs.watch(store.DATA_DIR, (ev, f) => { if (f === 'queued-workout.json' || f === 'settings.json') debounced() }) } catch { }
+  try { fs.watch(store.DATA_DIR, (ev, f) => { if (f === 'queued-workout.json' || f === 'settings.json' || f === 'plan.json') debounced() }) } catch { }
 }
 
 // Beim Start still die Waage synchronisieren (falls verbunden)

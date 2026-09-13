@@ -42,6 +42,15 @@ export interface Session extends SessionMeta {
 
 export interface QueuedWorkout { workout: Workout; note?: string; queuedAt: string }
 
+export interface PlanEntry {
+  id: string
+  date: string // YYYY-MM-DD
+  workoutId?: string
+  workoutName: string
+  note?: string
+  kind?: 'workout' | 'rest' | 'event'
+}
+
 export interface BodyEntry {
   date: string
   weightKg?: number
@@ -75,6 +84,9 @@ export interface KickrBridge {
   withingsDisconnect(): Promise<boolean>
   withingsSync(): Promise<{ ok: boolean; count?: number; total?: number; latestWeight?: number; error?: string }>
   listBody(): Promise<BodyEntry[]>
+  listPlan(): Promise<PlanEntry[]>
+  savePlanEntry(entry: PlanEntry): Promise<PlanEntry>
+  deletePlanEntry(id: string): Promise<boolean>
   stravaConnect(): Promise<{ ok: boolean; athleteName?: string; error?: string }>
   stravaDisconnect(): Promise<boolean>
   stravaUpload(sessionId: string): Promise<{ ok: boolean; activityId?: number | null; pending?: boolean; error?: string }>
@@ -140,6 +152,14 @@ const browserMock: KickrBridge = {
   withingsDisconnect: async () => true,
   withingsSync: async () => ({ ok: false, error: 'Withings nur in der Desktop-App verfügbar.' }),
   listBody: async () => ls('ks-body', []),
+  listPlan: async () => ls('ks-plan', []),
+  savePlanEntry: async (entry) => {
+    if (!entry.id) entry.id = 'p-' + Date.now().toString(36)
+    const all = ls<PlanEntry[]>('ks-plan', []).filter(e => e.id !== entry.id)
+    all.push(entry); all.sort((a, b) => a.date.localeCompare(b.date)); lsSet('ks-plan', all)
+    return entry
+  },
+  deletePlanEntry: async (id) => { lsSet('ks-plan', ls<PlanEntry[]>('ks-plan', []).filter(e => e.id !== id)); return true },
   stravaConnect: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaDisconnect: async () => true,
   stravaUpload: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),

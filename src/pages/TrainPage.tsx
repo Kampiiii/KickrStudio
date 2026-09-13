@@ -7,6 +7,11 @@ import { expandSegments, fmtDuration, targetPctAt, zoneColor, workoutDuration } 
 import WorkoutGraph from '../components/WorkoutGraph'
 import SummaryView from '../components/SummaryView'
 
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function smoothPower(samples: { power: number }[], current: number | null, windowSec: number): number | null {
   if (current == null) return null
   const vals = samples.slice(-Math.max(1, windowSec - 1)).map(s => s.power)
@@ -28,7 +33,9 @@ export default function TrainPage() {
 function IdleView() {
   const app = useApp()
   const { settings, workouts, queued, selectedWorkout } = app
-  const workout = selectedWorkout || (queued ? queued.workout : null) || workouts.find(w => w.id === 'builtin-grundlage-50') || workouts[0]
+  const todayEntry = useMemo(() => app.plan.find(e => e.date === todayIso() && e.kind === 'workout'), [app.plan])
+  const todayWorkout = todayEntry ? workouts.find(w => w.id === todayEntry.workoutId) : null
+  const workout = selectedWorkout || (queued ? queued.workout : null) || todayWorkout || workouts.find(w => w.id === 'builtin-grundlage-50') || workouts[0]
   const steps = useMemo(() => workout ? expandSegments(workout.segments) : [], [workout])
   const trainerReady = app.trainerState === 'connected'
 
@@ -45,6 +52,18 @@ function IdleView() {
           </div>
           <button className="btn primary" onClick={() => setState({ selectedWorkout: queued.workout })}>Auswählen</button>
           <button className="btn small" onClick={async () => { await bridge.clearQueuedWorkout(); setState({ queued: null }) }}>✕</button>
+        </div>
+      )}
+
+      {!queued && todayEntry && todayWorkout && !selectedWorkout && (
+        <div className="queued-banner">
+          <span style={{ fontSize: 20 }}>🗓️</span>
+          <div style={{ flex: 1 }}>
+            <b>Heute geplant: {todayWorkout.name}</b>
+            {todayEntry.note && <div className="hint">{todayEntry.note}</div>}
+          </div>
+          <button className="btn primary" onClick={() => setState({ selectedWorkout: todayWorkout })}>Auswählen</button>
+          <button className="btn small" onClick={() => setState({ page: 'plan' })}>Plan öffnen</button>
         </div>
       )}
 

@@ -15,6 +15,7 @@ const HISTORY_DIR = path.join(DATA_DIR, 'history')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
 const QUEUE_FILE = path.join(DATA_DIR, 'queued-workout.json')
 const BUILTINS_FILE = path.join(DATA_DIR, 'builtin-workouts.json')
+const PLAN_FILE = path.join(DATA_DIR, 'plan.json')
 
 for (const d of [DATA_DIR, WORKOUTS_DIR, HISTORY_DIR]) fs.mkdirSync(d, { recursive: true })
 
@@ -198,6 +199,76 @@ server.tool(
     }
     fs.writeFileSync(QUEUE_FILE, JSON.stringify({ workout, note: note || '', queuedAt: new Date().toISOString() }, null, 2))
     return json({ ok: true, queued: workout.name })
+  }
+)
+
+const listPlan = () => readJson(PLAN_FILE, []).sort((a, b) => a.date.localeCompare(b.date))
+function writePlan(entries) { fs.writeFileSync(PLAN_FILE, JSON.stringify(entries, null, 2)) }
+const dateRe = /^\d{4}-\d{2}-\d{2}$/
+
+server.tool(
+  'get_plan',
+  'Der Trainingsplan (Kalender) des Athleten: geplante Einheiten, Pausentage und Ereignisse (z.B. OP, Urlaub) mit Datum. from/to filtern (YYYY-MM-DD, beide optional). Zeigt auch, welche geplanten Tage bereits absolviert wurden (Abgleich mit list_sessions per Datum).',
+  { from: z.string().regex(dateRe).optional(), to: z.string().regex(dateRe).optional() },
+  async ({ from, to }) => {
+    let plan = listPlan()
+    if (from) plan = plan.filter(e => e.date >= from)
+    if (to) plan = plan.filter(e => e.date <= to)
+    const doneDates = new Set(listSessionMetas().map(s => (s.startedAt || '').slice(0, 10)))
+    return json(plan.map(e => ({ ...e, done: doneDates.has(e.date) })))
+  }
+)
+
+server.tool(
+  'plan_workout',
+  'Plant eine Einheit, eine Pause oder ein Ereignis (z.B. Operation, Urlaub) für ein bestimmtes Datum ein — erscheint im Kalender der Plan-Seite. Bei kind="workout" entweder workout_id (aus list_workouts) oder name+segments für ein neues Workout angeben. Homeoffice-Tage sind flexibel: bereits geplante Einheiten können per erneutem Aufruf mit gleicher id auf ein neues Datum verschoben werden (id aus get_plan).',
+  {
+    id: z.string().optional().describe('Vorhandenen Eintrag aktualisieren/verschieben (id aus get_plan). Leer lassen für einen neuen Eintrag.'),
+    date: z.string().regex(dateRe).describe('YYYY-MM-DD'),
+    kind: z.enum(['workout', 'rest', 'event']).default('workout'),
+    workout_id: z.string().optional(),
+    name: z.string().max(80).optional(),
+    segments: z.array(segmentSchema).max(40).optional(),
+    note: z.string().max(300).optional(),
+  },
+  async ({ id, date, kind, workout_id, name, segments, note }) => {
+    let workoutName = name || (kind === 'rest' ? 'Pause' : kind === 'event' ? 'Ereignis' : '')
+    let usedWorkoutId
+    if (kind === 'workout') {
+      if (workout_id) {
+        const w = listAllWorkouts().find(x => x.id === workout_id)
+        if (!w) return json({ error: 'Workout-ID nicht gefunden', workout_id })
+        workoutName = w.name
+        usedWorkoutId = w.id
+      } else if (name && segments && segments.length) {
+        const newId = name.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').slice(0, 60) + '-' + Date.now().toString(36)
+        const workout = { id: newId, name, description: note || '', tags: ['Claude'], source: 'claude', segments }
+        fs.writeFileSync(path.join(WORKOUTS_DIR, newId + '.json'), JSON.stringify(workout, null, 2))
+        workoutName = name
+        usedWorkoutId = newId
+      } else {
+        return json({ error: 'Für kind="workout" entweder workout_id oder name+segments angeben.' })
+      }
+    }
+    const plan = listPlan()
+    const entryId = id || 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+    const entry = { id: entryId, date, workoutId: usedWorkoutId, workoutName, note: note || '', kind }
+    const next = [...plan.filter(e => e.id !== entryId), entry].sort((a, b) => a.date.localeCompare(b.date))
+    writePlan(next)
+    return json({ ok: true, id: entryId, date, workoutName, kind })
+  }
+)
+
+server.tool(
+  'remove_plan_entry',
+  'Entfernt einen Eintrag aus dem Trainingsplan (id aus get_plan).',
+  { id: z.string() },
+  async ({ id }) => {
+    const plan = listPlan()
+    const next = plan.filter(e => e.id !== id)
+    if (next.length === plan.length) return json({ ok: false, error: 'Eintrag nicht gefunden', id })
+    writePlan(next)
+    return json({ ok: true })
   }
 )
 

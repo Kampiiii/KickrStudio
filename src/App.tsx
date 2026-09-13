@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useApp, setState, type Page } from './state'
 import { bridge } from './bridge'
 import TrainPage from './pages/TrainPage'
+import PlanPage from './pages/PlanPage'
 import WorkoutsPage, { loadAllWorkouts } from './pages/WorkoutsPage'
 import HistoryPage from './pages/HistoryPage'
 import BodyPage from './pages/BodyPage'
@@ -11,6 +12,7 @@ import { fmtDuration } from './engine/model'
 
 const NAV: { page: Page; label: string; ico: string }[] = [
   { page: 'train', label: 'Training', ico: '🚴' },
+  { page: 'plan', label: 'Plan', ico: '🗓️' },
   { page: 'workouts', label: 'Programme', ico: '📋' },
   { page: 'history', label: 'Verlauf', ico: '📈' },
   { page: 'body', label: 'Körper', ico: '⚖️' },
@@ -18,10 +20,10 @@ const NAV: { page: Page; label: string; ico: string }[] = [
 ]
 
 async function loadAll() {
-  const [settings, workouts, sessions, queued] = await Promise.all([
-    bridge.getSettings(), loadAllWorkouts(), bridge.listSessions(), bridge.getQueuedWorkout(),
+  const [settings, workouts, sessions, queued, plan] = await Promise.all([
+    bridge.getSettings(), loadAllWorkouts(), bridge.listSessions(), bridge.getQueuedWorkout(), bridge.listPlan(),
   ])
-  setState({ settings, workouts, sessions, queued })
+  setState({ settings, workouts, sessions, queued, plan })
   // Snapshot der eingebauten Programme für den MCP-Server hinterlegen
   if (bridge.snapshotBuiltins) {
     const { BUILTIN_WORKOUTS } = await import('./engine/library')
@@ -60,6 +62,7 @@ export default function App() {
       </div>
       <div className="content">
         {app.page === 'train' && <TrainPage />}
+        {app.page === 'plan' && <PlanPage />}
         {app.page === 'workouts' && <WorkoutsPage />}
         {app.page === 'history' && <HistoryPage />}
         {app.page === 'body' && <BodyPage />}

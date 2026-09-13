@@ -119,6 +119,28 @@ function deleteSession(id) {
   if (fs.existsSync(f)) fs.unlinkSync(f)
 }
 
+const PLAN_FILE = path.join(DATA_DIR, 'plan.json')
+
+function listPlan() {
+  return readJson(PLAN_FILE, [])
+}
+
+function savePlanEntry(entry) {
+  ensureDirs()
+  if (!entry.id) entry.id = 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  const all = listPlan().filter(e => e.id !== entry.id)
+  all.push(entry)
+  all.sort((a, b) => a.date.localeCompare(b.date))
+  fs.writeFileSync(PLAN_FILE, JSON.stringify(all, null, 2))
+  return entry
+}
+
+function deletePlanEntry(id) {
+  ensureDirs()
+  const all = listPlan().filter(e => e.id !== id)
+  fs.writeFileSync(PLAN_FILE, JSON.stringify(all, null, 2))
+}
+
 const BODY_FILE = path.join(DATA_DIR, 'body.json')
 
 function listBody() {
@@ -153,4 +175,5 @@ module.exports = {
   listSessions, getSession, saveSession, updateSession, deleteSession,
   getQueuedWorkout, setQueuedWorkout,
   listBody, mergeBody, BODY_FILE,
+  listPlan, savePlanEntry, deletePlanEntry, PLAN_FILE,
 }
