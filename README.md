@@ -11,6 +11,8 @@ npm start
 
 `npm start` baut das UI und startet die Desktop-App. Für die Entwicklung mit Hot-Reload: `npm run dev`.
 
+Für den Alltag lohnt sich stattdessen ein echtes Release ohne Terminal — siehe [„Als Desktop-App installieren“](#als-desktop-app-installieren-release) unten.
+
 ## Bedienung
 
 1. **Training** → „Trainer verbinden“ (Kickr aufwecken: kurz kurbeln) und optional „HF-Gurt verbinden“. Ohne Hardware: Button **Simulator**.
@@ -18,6 +20,7 @@ npm start
 3. Während der Fahrt: Pause, Segment überspringen, Intensität ±trimmen. Bei Verbindungsverlust pausiert das Workout automatisch und läuft nach dem Reconnect weiter.
 4. Nach der Einheit: Zusammenfassung (NP, IF, TSS, Zonen) → **An Strava senden** oder **TCX exportieren**.
 5. **FTP-Rampentest**: bis zur Ausbelastung fahren, dann Beenden — die App schlägt die neue FTP vor (75 % der besten Minutenleistung).
+6. **Plan**: Einheiten, Pausen und Ereignisse im Kalender eintragen — per Drag & Drop oder Datumsfeld frei auf andere Tage verschiebbar (praktisch bei wechselnden Homeoffice-Tagen). Die Trainingsseite zeigt automatisch das für heute geplante Workout an.
 
 ## Strava einrichten (einmalig)
 
@@ -48,19 +51,39 @@ Voraussetzung: Node.js installiert. In die Claude-Desktop-Konfiguration (`claude
 
 Claude kann dann u.a.:
 
-- `get_profile` / `get_training_load` — FTP, Zonen, TSS-Wochenlast → Entwicklung auswerten
+- `get_profile` / `get_training_load` / `get_body_composition` — FTP, Zonen, TSS-Wochenlast, Körperzusammensetzung → Entwicklung auswerten
 - `list_sessions` / `get_session` — absolvierte Einheiten inkl. Messwerten analysieren
-- `create_workout` — neue Programme (in %FTP) in deine Bibliothek legen
+- `list_workouts` / `create_workout` — neue Programme (in %FTP) in deine Bibliothek legen
 - `queue_workout` — ein Workout für die nächste Session vorschlagen; es erscheint prominent auf der Trainingsseite
+- `get_plan` / `plan_workout` / `remove_plan_entry` — den Trainingsplan-Kalender lesen und fortschreiben (Einheiten, Pausen, Ereignisse mit Datum)
 
-Beispiel-Prompt in Claude Desktop: *„Schau dir meine letzten 4 Trainingswochen an und schlag mir für morgen eine passende Einheit vor.“*
+Beispiel-Prompts in Claude Desktop: *„Schau dir meine letzten 4 Trainingswochen an und schlag mir für morgen eine passende Einheit vor.“* oder *„Plane mir diese Woche 3 Einheiten passend zu meinen Homeoffice-Tagen.“*
+
+## Als Desktop-App installieren (Release)
+
+```
+npm run release
+```
+
+Baut die App, installiert sie eigenständig nach `%LOCALAPPDATA%\Programs\KickrStudio` (kein Terminal, kein Node/Vite mehr nötig zum Starten) und legt eine **Desktop-Verknüpfung mit eigenem Icon** an. Danach reicht ein Doppelklick auf „KickrStudio“ auf dem Desktop.
+
+Da die App unsigniert ist, kann Windows SmartScreen beim ersten Start warnen — dann auf „Weitere Informationen“ → „Trotzdem ausführen“ klicken (einmalig).
+
+Nach Code-Änderungen einfach `npm run release` erneut ausführen — überschreibt die installierte Version, Einstellungen/Verlauf/Pläne bleiben unberührt (die liegen separat unter `%APPDATA%\kickr-studio`, siehe Backup unten).
+
+## Backup
+
+Bei **jedem App-Start** wird automatisch ein Backup aller Daten (Einstellungen, Workouts, Verlauf, Körperdaten, Plan) als ZIP neben dem Datenordner abgelegt (`%APPDATA%\kickr-studio-backups`, die letzten 10 Stände). Das schützt vor versehentlichem Überschreiben oder einer kaputten Datei — **aber nicht** vor Verlust der ganzen Festplatte.
+
+Für echte Sicherheit zusätzlich unter Einstellungen → Backup gelegentlich **„Backup exportieren…“** an einen anderen Ort speichern (Cloud-Ordner wie OneDrive/Dropbox, USB-Stick). Wiederherstellen geht über **„Backup wiederherstellen…“** (mit Bestätigung) — die App startet danach automatisch neu.
 
 ## Technik
 
 - Electron + React + TypeScript; BLE über Web Bluetooth (Chromium)
 - Trainer-Steuerung per **FTMS** (Fitness Machine Service, ERG-Modus via Set Target Power), Fallback Cycling Power Service (nur Messwerte); Herzfrequenz per BLE Heart Rate Service
 - Robustheit: Auto-Reconnect mit Backoff, periodisches Wiederholen des ERG-Sollwerts, Datenfluss-Watchdog, Display-Sleep-Blocker während der Fahrt
-- Daten als JSON unter `%APPDATA%/kickr-studio` (Settings, Workouts, Einheiten) — vom MCP-Server direkt lesbar
+- Daten als JSON unter `%APPDATA%/kickr-studio` (Settings, Workouts, Einheiten, Plan) — vom MCP-Server direkt lesbar
+- Release-Build ohne electron-builder-Installer: `scripts/package-app.mjs` kopiert die lokale Electron-Distribution + App-Code manuell (in dieser Entwicklungsumgebung blockierte ein Hintergrundprozess wiederholt das Entpacken frisch heruntergeladener Electron-Binaries im Projektordner — `npm run dist` mit electron-builder/NSIS bleibt als Alternative vorbereitet)
 - TCX-Export mit aus der Leistung geschätzter Geschwindigkeit/Distanz
 
 ## Hinweise
