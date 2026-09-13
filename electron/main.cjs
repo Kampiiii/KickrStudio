@@ -141,6 +141,18 @@ ipcMain.on('ble:cancel', () => {
 
 // ---------- IPC: Daten ----------
 ipcMain.handle('settings:get', () => {
+  // Roh-Diagnose: was sieht DIESER Prozess beim direkten Dateizugriff wirklich?
+  const settingsPath = path.join(store.DATA_DIR, 'settings.json')
+  try {
+    const exists = fs.existsSync(settingsPath)
+    let raw = null, rawErr = null
+    if (exists) { try { raw = fs.readFileSync(settingsPath, 'utf8') } catch (e) { rawErr = e.message } }
+    let statInfo = null
+    try { const st = fs.statSync(settingsPath); statInfo = `size=${st.size} mtime=${st.mtime.toISOString()}` } catch (e) { statInfo = 'stat-Fehler: ' + e.message }
+    logDiag(`RAW-CHECK settings.json: exists=${exists} ${statInfo} rawLength=${raw ? raw.length : 'null'} rawErr=${rawErr} rawStart=${raw ? JSON.stringify(raw.slice(0, 60)) : 'n/a'}`)
+  } catch (e) {
+    logDiag('RAW-CHECK Fehler: ' + (e?.stack || e))
+  }
   const s = store.getSettings()
   logDiag(`settings:get → ftp=${s.ftp} strava=${!!s.strava?.refreshToken} withings=${!!s.withings?.refreshToken} dataDir=${store.DATA_DIR}`)
   return s
