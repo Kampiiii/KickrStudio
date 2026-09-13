@@ -157,15 +157,23 @@ ipcMain.on('ble:cancel', () => {
 
 // ---------- IPC: Daten ----------
 ipcMain.handle('settings:get', () => {
-  // Roh-Diagnose: was sieht DIESER Prozess beim direkten Dateizugriff wirklich?
+  // Roh-Diagnose mit Retry: was sieht DIESER Prozess beim direkten Dateizugriff,
+  // und hilft ein kurzes Warten+Wiederholen, falls die Datei zunächst fehlt?
   const settingsPath = path.join(store.DATA_DIR, 'settings.json')
   try {
-    const exists = fs.existsSync(settingsPath)
-    let raw = null, rawErr = null
-    if (exists) { try { raw = fs.readFileSync(settingsPath, 'utf8') } catch (e) { rawErr = e.message } }
-    let statInfo = null
-    try { const st = fs.statSync(settingsPath); statInfo = `size=${st.size} mtime=${st.mtime.toISOString()}` } catch (e) { statInfo = 'stat-Fehler: ' + e.message }
-    logDiag(`RAW-CHECK settings.json: exists=${exists} ${statInfo} rawLength=${raw ? raw.length : 'null'} rawErr=${rawErr} rawStart=${raw ? JSON.stringify(raw.slice(0, 60)) : 'n/a'}`)
+    for (let attempt = 0; attempt <= 4; attempt++) {
+      const exists = fs.existsSync(settingsPath)
+      if (exists || attempt === 4) {
+        let raw = null, rawErr = null
+        if (exists) { try { raw = fs.readFileSync(settingsPath, 'utf8') } catch (e) { rawErr = e.message } }
+        let statInfo = null
+        try { const st = fs.statSync(settingsPath); statInfo = `size=${st.size} mtime=${st.mtime.toISOString()}` } catch (e) { statInfo = 'stat-Fehler: ' + e.message }
+        logDiag(`RAW-CHECK settings.json (Versuch ${attempt + 1}): exists=${exists} ${statInfo} rawLength=${raw ? raw.length : 'null'} rawErr=${rawErr} rawStart=${raw ? JSON.stringify(raw.slice(0, 60)) : 'n/a'}`)
+        break
+      }
+      logDiag(`RAW-CHECK settings.json (Versuch ${attempt + 1}): exists=false — warte und wiederhole`)
+      try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150) } catch { }
+    }
   } catch (e) {
     logDiag('RAW-CHECK Fehler: ' + (e?.stack || e))
   }

@@ -39,18 +39,28 @@ function ensureDirs() {
   for (const d of [DATA_DIR, WORKOUTS_DIR, HISTORY_DIR]) fs.mkdirSync(d, { recursive: true })
 }
 
-function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
+function sleepMs(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch { }
 }
 
-// War: Temp-Datei + Rename (klassisches atomares Schreiben). Musste zurückgebaut
-// werden — Windows Defenders Verhaltenserkennung stuft "in Temp-Datei schreiben,
-// dann über die Originaldatei umbenennen" als typisches Ransomware-Muster ein und
-// blockiert danach genau für UNSERE (unsignierte) App den Zugriff auf die
-// betroffene Datei, obwohl sie auf der Platte unverändert vorhanden bleibt —
-// sichtbar für jeden anderen Prozess (PowerShell etc.), nur nicht mehr für uns.
-// Direktes Schreiben umgeht dieses Muster; Backups fangen das (winzige) Risiko
-// eines Absturzes mitten im Schreibvorgang ab.
+// Auf einer bestimmten Windows-Installation gibt eine per Desktop-Verknüpfung
+// gestartete Instanz für settings.json/plan.json/body.json vereinzelt ENOENT
+// zurück, obwohl die Datei nachweislich vorhanden und für jeden anderen Prozess
+// (PowerShell, Explorer) sofort lesbar ist — Ursache trotz ausführlicher Analyse
+// (Antivirus, Kontrollierter Ordnerzugriff, Mark-of-the-Web, ACLs, Schreibmuster)
+// nicht abschließend geklärt. Ein kurzer Retry überbrückt das zuverlässig.
+function readJson(file, fallback, retries = 4, delayMs = 120) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8'))
+    } catch (e) {
+      if (attempt === retries) return fallback
+      sleepMs(delayMs)
+    }
+  }
+  return fallback
+}
+
 function writeJsonAtomic(file, data, pretty = true) {
   fs.writeFileSync(file, pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data))
 }
