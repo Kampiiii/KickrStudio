@@ -25,6 +25,12 @@ npm start
 2. Client-ID und Client-Secret in KickrStudio unter Einstellungen → Strava eintragen → **Mit Strava verbinden**.
 3. Danach lädt „An Strava senden“ die Einheit als virtuelle Radfahrt hoch (Watt, HF, Kadenz inklusive).
 
+## Withings-Waage einrichten (einmalig, optional)
+
+1. Auf <https://developer.withings.com/dashboard/> eine App anlegen (Callback-URL: `http://localhost:4571/withings/callback`).
+2. Client-ID und Client-Secret in KickrStudio unter Einstellungen → Withings-Waage eintragen → **Mit Withings verbinden**.
+3. Die Körperdaten (Gewicht, Fett %, Muskel-/Wasser-/Knochenmasse) erscheinen auf der Seite **Körper** und werden bei jedem App-Start synchronisiert. Optional übernimmt die App das aktuelle Waagengewicht automatisch ins Leistungsprofil (für W/kg und den TCX-Export).
+
 ## Claude Desktop anbinden (MCP)
 
 Voraussetzung: Node.js installiert. In die Claude-Desktop-Konfiguration (`claude_desktop_config.json`, unter Einstellungen → Entwickler) eintragen — den fertigen Block mit korrektem Pfad zeigt KickrStudio unter Einstellungen → Claude/MCP:
