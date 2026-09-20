@@ -15,6 +15,7 @@ export interface Settings {
   strava: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; athleteName: string }
   withings: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; userId: string; autoWeight: boolean; lastSyncAt: string }
   erg: { smoothingSec: number; trimStepPct: number; resendIntervalSec: number }
+  cloud: { projectId: string; bucket: string; dataset: string; location: string; agentUrl: string; agentApp: string; autoSync: boolean }
   devices: { trainer: { name: string } | null; hr: { name: string } | null }
   autoConnect: boolean
   httpPort: number
@@ -34,6 +35,7 @@ export interface SessionMeta {
   }
   stravaActivityId?: number | null
   uploadedAt?: string
+  cloudSyncedAt?: string
 }
 
 export interface Session extends SessionMeta {
@@ -114,6 +116,10 @@ export interface KickrBridge {
   openBackupFolder(): Promise<void>
   relaunchApp(): Promise<void>
 
+  cloudTest(): Promise<{ ok: boolean; error?: string }>
+  cloudSync(): Promise<{ ok: boolean; uploadedSessions?: number; totalSessions?: number; bodyRows?: number; planRows?: number; seconds?: number; error?: string }>
+  cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; error?: string }>
+
   getDebugLog(): Promise<{ startupLog: string; fallbackLog: string; dataDir: string; logFile: string; appPath: string; isPackaged: boolean; versions: Record<string, string> }>
   openLogFolder(): Promise<void>
 }
@@ -140,6 +146,7 @@ const DEFAULT_SETTINGS: Settings = {
   strava: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' },
   withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
+  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false },
   devices: { trainer: null, hr: null },
   autoConnect: true,
   httpPort: 4571,
@@ -200,6 +207,10 @@ const browserMock: KickrBridge = {
   listAutoBackups: async () => [],
   openBackupFolder: async () => { },
   relaunchApp: async () => { window.location.reload() },
+
+  cloudTest: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
+  cloudSync: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
+  cloudAsk: async () => ({ ok: false, error: 'Coach nur in der Desktop-App verfügbar.' }),
 
   getDebugLog: async () => ({ startupLog: '(nur in der Desktop-App verfügbar)', fallbackLog: '', dataDir: '(Browser-Modus)', logFile: '', appPath: '', isPackaged: false, versions: {} }),
   openLogFolder: async () => { },

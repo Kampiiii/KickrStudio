@@ -65,7 +65,7 @@ export default function HistoryPage() {
         <div className="card" style={{ padding: 0 }}>
           <table className="list">
             <thead><tr>
-              <th>Datum</th><th>Workout</th><th>Dauer</th><th>Ø W</th><th>NP</th><th>IF</th><th>TSS</th><th>Ø HF</th><th>Strava</th><th></th>
+              <th>Datum</th><th>Workout</th><th>Dauer</th><th>Ø W</th><th>NP</th><th>IF</th><th>TSS</th><th>Ø HF</th><th>Strava</th><th>Cloud</th><th></th>
             </tr></thead>
             <tbody>
               {app.sessions.map(s => <HistoryRow key={s.id} meta={s} onOpen={async () => {
@@ -93,6 +93,7 @@ function HistoryRow({ meta, onOpen }: { meta: SessionMeta; onOpen: () => void })
       <td>{sum ? Math.round(sum.tss) : '–'}</td>
       <td>{sum?.avgHr ?? '–'}</td>
       <td>{meta.stravaActivityId ? '✓' : ''}</td>
+      <td title={meta.cloudSyncedAt ? `Synchronisiert ${meta.cloudSyncedAt}` : 'Noch nicht in der Cloud'}>{meta.cloudSyncedAt ? '☁' : ''}</td>
       <td onClick={e => e.stopPropagation()}>
         <button className="btn small danger" onClick={async () => {
           if (!confirm('Einheit löschen?')) return

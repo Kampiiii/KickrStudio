@@ -11,6 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { execSync } from 'node:child_process'
 
 const root = process.cwd()
 // Im TEMP-Verzeichnis bauen: unter dem Projektordner (evtl. von Virenschutz/Indexer
@@ -40,12 +41,21 @@ fs.cpSync(path.join(root, 'dist'), path.join(appDir, 'dist'), { recursive: true 
 fs.mkdirSync(path.join(appDir, 'build'), { recursive: true })
 fs.copyFileSync(path.join(root, 'build', 'icon.ico'), path.join(appDir, 'build', 'icon.ico'))
 
+// Laufzeit-Abhängigkeiten des Main-Prozesses (React & Co. sind per Vite ins Frontend gebündelt,
+// mcp/ läuft separat aus dem Projektordner). Aktuell nur die Google-Cloud-Clients.
+const RUNTIME_DEPS = ['@google-cloud/bigquery', '@google-cloud/storage']
+
 const rootPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+const dependencies = Object.fromEntries(RUNTIME_DEPS.map(name => [name, rootPkg.dependencies[name]]))
 fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({
   name: rootPkg.name,
   productName: rootPkg.productName,
   version: rootPkg.version,
   main: 'electron/main.cjs',
+  dependencies,
 }, null, 2))
+
+console.log('Installiere Laufzeit-Abhängigkeiten (Google Cloud)...')
+execSync('npm install --omit=dev --no-audit --no-fund --no-package-lock', { cwd: appDir, stdio: 'inherit' })
 
 console.log('Fertig:', path.join(outDir, 'KickrStudio.exe'))

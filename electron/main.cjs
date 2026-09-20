@@ -5,6 +5,7 @@ const store = require('./store.cjs')
 const strava = require('./strava.cjs')
 const withings = require('./withings.cjs')
 const backup = require('./backup.cjs')
+const cloud = require('./cloud.cjs')
 const { sessionToTcx } = require('./tcx.cjs')
 
 let win = null
@@ -157,26 +158,6 @@ ipcMain.on('ble:cancel', () => {
 
 // ---------- IPC: Daten ----------
 ipcMain.handle('settings:get', () => {
-  // Roh-Diagnose mit Retry: was sieht DIESER Prozess beim direkten Dateizugriff,
-  // und hilft ein kurzes Warten+Wiederholen, falls die Datei zunächst fehlt?
-  const settingsPath = path.join(store.DATA_DIR, 'settings.json')
-  try {
-    for (let attempt = 0; attempt <= 4; attempt++) {
-      const exists = fs.existsSync(settingsPath)
-      if (exists || attempt === 4) {
-        let raw = null, rawErr = null
-        if (exists) { try { raw = fs.readFileSync(settingsPath, 'utf8') } catch (e) { rawErr = e.message } }
-        let statInfo = null
-        try { const st = fs.statSync(settingsPath); statInfo = `size=${st.size} mtime=${st.mtime.toISOString()}` } catch (e) { statInfo = 'stat-Fehler: ' + e.message }
-        logDiag(`RAW-CHECK settings.json (Versuch ${attempt + 1}): exists=${exists} ${statInfo} rawLength=${raw ? raw.length : 'null'} rawErr=${rawErr} rawStart=${raw ? JSON.stringify(raw.slice(0, 60)) : 'n/a'}`)
-        break
-      }
-      logDiag(`RAW-CHECK settings.json (Versuch ${attempt + 1}): exists=false — warte und wiederhole`)
-      try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150) } catch { }
-    }
-  } catch (e) {
-    logDiag('RAW-CHECK Fehler: ' + (e?.stack || e))
-  }
   const s = store.getSettings()
   logDiag(`settings:get → ftp=${s.ftp} strava=${!!s.strava?.refreshToken} withings=${!!s.withings?.refreshToken} dataDir=${store.DATA_DIR}`)
   return s
@@ -257,6 +238,14 @@ ipcMain.handle('debug:getLog', () => {
   }
 })
 ipcMain.handle('debug:openLogFolder', () => shell.showItemInFolder(LOG_FILE))
+
+// ---------- IPC: Google Cloud (Sync + Coach) ----------
+const cloudCall = (fn) => async (_e, ...args) => {
+  try { return await fn(...args) } catch (e) { return { ok: false, error: String(e?.message || e) } }
+}
+ipcMain.handle('cloud:test', cloudCall(() => cloud.test()))
+ipcMain.handle('cloud:sync', cloudCall(() => cloud.sync()))
+ipcMain.handle('cloud:ask', cloudCall((question, sessionId) => cloud.askAgent(question, sessionId)))
 
 ipcMain.handle('backup:create', async () => {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {

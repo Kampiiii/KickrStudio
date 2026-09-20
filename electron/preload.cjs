@@ -59,6 +59,10 @@ contextBridge.exposeInMainWorld('kickr', {
   openBackupFolder: () => ipcRenderer.invoke('backup:openFolder'),
   relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
 
+  cloudTest: () => ipcRenderer.invoke('cloud:test'),
+  cloudSync: () => ipcRenderer.invoke('cloud:sync'),
+  cloudAsk: (question, sessionId) => ipcRenderer.invoke('cloud:ask', question, sessionId),
+
   getDebugLog: () => ipcRenderer.invoke('debug:getLog'),
   openLogFolder: () => ipcRenderer.invoke('debug:openLogFolder'),
 })

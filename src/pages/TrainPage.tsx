@@ -5,6 +5,7 @@ import { connectTrainer, connectHr, disconnectTrainer, disconnectHr } from '../b
 import { startWorkout, pauseWorkout, resumeWorkout, skipSegment, trim, finishWorkout, dismissSummary, setFreerideTarget } from '../engine/player'
 import { expandSegments, fmtDuration, targetPctAt, zoneColor, workoutDuration } from '../engine/model'
 import { computeSummary } from '../engine/metrics'
+import { runCloudSync } from '../engine/cloudSync'
 import WorkoutGraph from '../components/WorkoutGraph'
 import SummaryView from '../components/SummaryView'
 
@@ -280,6 +281,8 @@ function FinishedView() {
   const [uploading, setUploading] = useState(false)
   const [uploaded, setUploaded] = useState<number | null>(session.stravaActivityId ?? null)
   const stravaReady = !!app.settings?.strava.refreshToken
+  const [cloudBusy, setCloudBusy] = useState(false)
+  const [cloudDone, setCloudDone] = useState(!!session.cloudSyncedAt)
 
   const upload = async () => {
     setUploading(true)
@@ -326,6 +329,12 @@ function FinishedView() {
           <button className="btn" onClick={() => bridge.openExternal(`https://www.strava.com/activities/${uploaded}`)}>Bei Strava öffnen ↗</button>
         )}
         {!stravaReady && <span className="hint">Strava in den Settings verbinden für direkten Upload.</span>}
+        <button className="btn big" disabled={cloudBusy || cloudDone} onClick={async () => {
+          setCloudBusy(true)
+          const r = await runCloudSync()
+          setCloudBusy(false)
+          if (r.ok) setCloudDone(true)
+        }}>{cloudBusy ? 'Synchronisiere …' : cloudDone ? '✓ In der Cloud' : '☁ An Cloud senden'}</button>
         <button className="btn big" onClick={async () => {
           const r = await bridge.exportTcx(session.id)
           if (r.ok) showToast('TCX gespeichert: ' + r.filePath)

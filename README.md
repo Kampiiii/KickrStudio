@@ -77,6 +77,10 @@ Bei **jedem App-Start** wird automatisch ein Backup aller Daten (Einstellungen, 
 
 Für echte Sicherheit zusätzlich unter Einstellungen → Backup gelegentlich **„Backup exportieren…“** an einen anderen Ort speichern (Cloud-Ordner wie OneDrive/Dropbox, USB-Stick). Wiederherstellen geht über **„Backup wiederherstellen…“** (mit Bestätigung) — die App startet danach automatisch neu.
 
+## Cloud (Google Cloud, Iceberg, BigQuery, Agent)
+
+Die Trainingsdaten lassen sich als **Apache-Iceberg-Tabellen** in Google Cloud spiegeln, mit BigQuery auswerten und von einem KI-Agenten (Google ADK + Gemini) befragen. Aufbau, Datenmodell, Ablauf und Roadmap (inkl. fester Einbindung in die App und Einbettung des Agenten) stehen mit Mermaid-Diagrammen in [docs/cloud-architecture.md](docs/cloud-architecture.md). Die Skripte liegen in `cloud/`.
+
 ## Technik
 
 - Electron + React + TypeScript; BLE über Web Bluetooth (Chromium)

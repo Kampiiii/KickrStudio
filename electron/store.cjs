@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
   withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
   devices: { trainer: null, hr: null },
+  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false },
   autoConnect: true,
   httpPort: 4571,
 }
@@ -39,26 +40,8 @@ function ensureDirs() {
   for (const d of [DATA_DIR, WORKOUTS_DIR, HISTORY_DIR]) fs.mkdirSync(d, { recursive: true })
 }
 
-function sleepMs(ms) {
-  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch { }
-}
-
-// Auf einer bestimmten Windows-Installation gibt eine per Desktop-Verknüpfung
-// gestartete Instanz für settings.json/plan.json/body.json vereinzelt ENOENT
-// zurück, obwohl die Datei nachweislich vorhanden und für jeden anderen Prozess
-// (PowerShell, Explorer) sofort lesbar ist — Ursache trotz ausführlicher Analyse
-// (Antivirus, Kontrollierter Ordnerzugriff, Mark-of-the-Web, ACLs, Schreibmuster)
-// nicht abschließend geklärt. Ein kurzer Retry überbrückt das zuverlässig.
-function readJson(file, fallback, retries = 4, delayMs = 120) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return JSON.parse(fs.readFileSync(file, 'utf8'))
-    } catch (e) {
-      if (attempt === retries) return fallback
-      sleepMs(delayMs)
-    }
-  }
-  return fallback
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 
 function writeJsonAtomic(file, data, pretty = true) {
@@ -74,6 +57,7 @@ function getSettings() {
     withings: { ...DEFAULT_SETTINGS.withings, ...(s.withings || {}) },
     erg: { ...DEFAULT_SETTINGS.erg, ...(s.erg || {}) },
     devices: { ...DEFAULT_SETTINGS.devices, ...(s.devices || {}) },
+    cloud: { ...DEFAULT_SETTINGS.cloud, ...(s.cloud || {}) },
   }
 }
 

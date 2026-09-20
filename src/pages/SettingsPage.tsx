@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
 import { bridge, isElectron, type Settings } from '../bridge'
+import { runCloudSync } from '../engine/cloudSync'
 
 export default function SettingsPage() {
   const app = useApp()
@@ -177,6 +178,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <CloudSection s={s} upd={upd} />
+
         <div className="card settings-section">
           <h3>✨ Claude / MCP-Schnittstelle</h3>
           <div className="hint" style={{ marginBottom: 10 }}>
@@ -216,6 +219,63 @@ export default function SettingsPage() {
 
         <BackupSection />
 
+      </div>
+    </div>
+  )
+}
+
+function CloudSection({ s, upd }: { s: Settings; upd: (patch: Partial<Settings>) => void }) {
+  const [testing, setTesting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const c = s.cloud
+  const set = (patch: Partial<Settings['cloud']>) => upd({ cloud: { ...c, ...patch } })
+
+  const test = async () => {
+    setTesting(true)
+    const r = await bridge.cloudTest()
+    setTesting(false)
+    if (r.ok) showToast('Google Cloud erreichbar: Bucket und Dataset gefunden ✓')
+    else showToast(r.error || 'Verbindungstest fehlgeschlagen', 'err')
+  }
+
+  const sync = async () => {
+    setSyncing(true)
+    await runCloudSync()
+    setSyncing(false)
+  }
+
+  return (
+    <div className="card settings-section">
+      <h3>☁️ Google Cloud</h3>
+      <div className="fields">
+        <label className="field">Projekt-ID
+          <input type="text" value={c.projectId} onChange={e => set({ projectId: e.target.value.trim() })} />
+        </label>
+        <label className="field">Region
+          <input type="text" value={c.location} onChange={e => set({ location: e.target.value.trim() })} />
+        </label>
+        <label className="field">Bucket
+          <input type="text" value={c.bucket} onChange={e => set({ bucket: e.target.value.trim() })} />
+        </label>
+        <label className="field">BigQuery-Dataset
+          <input type="text" value={c.dataset} onChange={e => set({ dataset: e.target.value.trim() })} />
+        </label>
+        <label className="field full">Agent-URL (Cloud Run, für die Coach-Seite)
+          <input type="text" value={c.agentUrl} placeholder="https://kickr-coach-…run.app" onChange={e => set({ agentUrl: e.target.value.trim() })} />
+        </label>
+        <label className="full row" style={{ gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-dim)' }}>
+          <input type="checkbox" checked={c.autoSync} style={{ width: 'auto' }} onChange={e => set({ autoSync: e.target.checked })} />
+          Nach jeder Einheit automatisch in die Cloud synchronisieren
+        </label>
+        <div className="full row wrap">
+          <button className="btn" disabled={testing} onClick={test}>{testing ? 'Teste …' : 'Verbindung testen'}</button>
+          <button className="btn primary" disabled={syncing} onClick={sync}>{syncing ? 'Synchronisiere …' : '☁ Jetzt synchronisieren'}</button>
+        </div>
+        <div className="full hint">
+          Die Anmeldung läuft über <span className="kbd">gcloud auth application-default login</span> — es liegen keine Schlüssel in der App.
+          Daten werden als JSON in den Bucket geladen, BigQuery wandelt sie in die Iceberg-Tabellen um.
+          Aufbau: <span className="kbd">docs/cloud-architecture.md</span>
+        </div>
       </div>
     </div>
   )

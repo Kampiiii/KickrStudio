@@ -4,6 +4,7 @@ import { computeSummary, bestRollingAvg, type Sample } from './metrics'
 import { getState, setState, showToast } from '../state'
 import { setTargetPower } from '../ble/manager'
 import { bridge, type Session } from '../bridge'
+import { runCloudSync } from './cloudSync'
 
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let lastSentTarget = -1
@@ -168,6 +169,8 @@ export async function finishWorkout() {
     ftpSuggestion,
     player: { ...s.player, status: 'finished' },
   }))
+
+  if (settings.cloud?.autoSync) void runCloudSync()
 }
 
 export function dismissSummary() {

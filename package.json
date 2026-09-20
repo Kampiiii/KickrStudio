@@ -18,12 +18,20 @@
   "build": {
     "appId": "com.kickrstudio.app",
     "productName": "KickrStudio",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
     "asar": true,
     "win": {
       "icon": "build/icon.ico",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -34,6 +42,8 @@
     }
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^9.1.0",
+    "@google-cloud/storage": "^8.2.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -304,6 +304,20 @@ table.list tr.clickable:hover td { background: var(--bg-hover); }
 .cal-entry.event { border-left-color: var(--yellow); }
 .cal-entry.entry-done { border-left-color: var(--accent); opacity: 0.6; text-decoration: line-through; }
 
+/* ---------- Coach-Chat ---------- */
+.chat { display: flex; flex-direction: column; height: 100%; }
+.chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; min-height: 0; }
+.msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); user-select: text; }
+.msg.user { align-self: flex-end; background: var(--accent-dim); border-color: var(--accent-dim); }
+.msg.agent { align-self: flex-start; background: var(--bg-card); }
+.msg.error { align-self: flex-start; background: #3a2023; border-color: #67373a; color: #f2a0a3; }
+.msg-text { white-space: pre-wrap; line-height: 1.5; }
+.msg-tools { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+.msg-tools summary { cursor: pointer; }
+.msg-tools pre.snippet { margin-top: 6px; white-space: pre-wrap; }
+.chat-input { display: flex; gap: 10px; align-items: flex-end; padding-top: 10px; border-top: 1px solid var(--border); }
+.chat-input textarea { resize: none; }
+
 .kbd { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 11px; font-family: Consolas, monospace; }
 
 pre.snippet {
