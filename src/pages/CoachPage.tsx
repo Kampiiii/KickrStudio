@@ -2,12 +2,14 @@
 // Iceberg-Tabellen in BigQuery per SQL abfragt.
 import { useEffect, useRef, useState } from 'react'
 import { useApp, setState } from '../state'
-import { bridge } from '../bridge'
+import { bridge, type ChartSpec } from '../bridge'
+import AgentChart from '../components/AgentChart'
 
 interface Msg {
   role: 'user' | 'agent' | 'error'
   text: string
   tools?: { name: string; args: Record<string, unknown> }[]
+  charts?: ChartSpec[]
 }
 
 const newId = () => 'chat-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -18,6 +20,7 @@ let conversation: { sessionId: string; messages: Msg[] } = { sessionId: newId(),
 const SUGGESTIONS = [
   'Wie sieht meine Form (TSB) in den letzten Tagen aus, und was steht diese Woche im Plan?',
   'Vergleiche meine letzten beiden Einheiten. Wo gibt es Unterschiede bei Herzfrequenz und Kadenz?',
+  'Zeig mir die Herzfrequenz- und Leistungskurve meiner letzten Einheit als Diagramm.',
   'Wie hat sich mein Gewicht in den letzten 30 Tagen verändert?',
 ]
 
@@ -44,7 +47,7 @@ export default function CoachPage() {
     setBusy(true)
     const res = await bridge.cloudAsk(question, conversation.sessionId)
     setBusy(false)
-    if (res.ok) push({ role: 'agent', text: res.answer || '', tools: res.tools })
+    if (res.ok) push({ role: 'agent', text: res.answer || '', tools: res.tools, charts: res.charts })
     else push({ role: 'error', text: res.error || 'Unbekannter Fehler' })
   }
 
@@ -87,14 +90,15 @@ export default function CoachPage() {
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>
-            <div className="msg-text">{m.text}</div>
+          <div key={i} className={`msg ${m.role}${m.charts?.length ? ' wide' : ''}`}>
+            {m.charts?.map((c, k) => <AgentChart key={k} spec={c} />)}
+            {m.text && <div className="msg-text">{m.text}</div>}
             {m.tools && m.tools.length > 0 && (
               <details className="msg-tools">
                 <summary>{m.tools.length} Abfrage{m.tools.length === 1 ? '' : 'n'} an die Daten anzeigen</summary>
                 {m.tools.map((t, j) => (
                   <pre key={j} className="snippet">
-                    {t.name}{typeof t.args.query === 'string' ? '\n' + t.args.query : ''}
+                    {t.name}{typeof t.args.query === 'string' ? '\n' + t.args.query : typeof t.args.sql === 'string' ? '\n' + t.args.sql : ''}
                   </pre>
                 ))}
               </details>

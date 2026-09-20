@@ -61,6 +61,15 @@ export interface PlanEntry {
   kind?: 'workout' | 'rest' | 'event'
 }
 
+export interface ChartSpec {
+  title: string
+  kind: 'line' | 'bar'
+  xType: 'time' | 'number' | 'category'
+  xLabel?: string
+  x: (number | string)[]
+  series: { name: string; values: (number | null)[] }[]
+}
+
 export interface BodyEntry {
   date: string
   weightKg?: number
@@ -118,7 +127,7 @@ export interface KickrBridge {
 
   cloudTest(): Promise<{ ok: boolean; error?: string }>
   cloudSync(): Promise<{ ok: boolean; uploadedSessions?: number; totalSessions?: number; bodyRows?: number; planRows?: number; seconds?: number; error?: string }>
-  cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; error?: string }>
+  cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; charts?: ChartSpec[]; error?: string }>
 
   getDebugLog(): Promise<{ startupLog: string; fallbackLog: string; dataDir: string; logFile: string; appPath: string; isPackaged: boolean; versions: Record<string, string> }>
   openLogFolder(): Promise<void>
@@ -210,7 +219,23 @@ const browserMock: KickrBridge = {
 
   cloudTest: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
   cloudSync: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
-  cloudAsk: async () => ({ ok: false, error: 'Coach nur in der Desktop-App verfügbar.' }),
+  // Browser-Testmodus: "Demo-Diagramm" in der Frage liefert ein Beispiel, um die Darstellung ohne Cloud zu prüfen
+  cloudAsk: async (question) => {
+    if (!question.toLowerCase().includes('demo-diagramm')) return { ok: false, error: 'Coach nur in der Desktop-App verfügbar.' }
+    const t = Array.from({ length: 300 }, (_, i) => i * 10)
+    return {
+      ok: true,
+      answer: 'Demo: Die Herzfrequenz steigt mit der Leistung und pendelt sich bei ca. 135 bpm ein.',
+      tools: [{ name: 'create_chart', args: { sql: 'SELECT t_sec, hr, power FROM `…samples` ORDER BY t_sec' } }],
+      charts: [{
+        title: 'Herzfrequenz und Leistung (Demo)', kind: 'line', xType: 'number', xLabel: 't_sec', x: t,
+        series: [
+          { name: 'hr', values: t.map(s => Math.round(70 + 65 * (1 - Math.exp(-s / 500)) + Math.sin(s / 90) * 3)) },
+          { name: 'power', values: t.map(s => Math.round(s < 600 ? 90 + s / 8 : 150 + (Math.floor(s / 600) % 2) * 60)) },
+        ],
+      }],
+    }
+  },
 
   getDebugLog: async () => ({ startupLog: '(nur in der Desktop-App verfügbar)', fallbackLog: '', dataDir: '(Browser-Modus)', logFile: '', appPath: '', isPackaged: false, versions: {} }),
   openLogFolder: async () => { },

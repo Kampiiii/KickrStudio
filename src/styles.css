@@ -311,6 +311,10 @@ table.list tr.clickable:hover td { background: var(--bg-hover); }
 .msg.user { align-self: flex-end; background: var(--accent-dim); border-color: var(--accent-dim); }
 .msg.agent { align-self: flex-start; background: var(--bg-card); }
 .msg.error { align-self: flex-start; background: #3a2023; border-color: #67373a; color: #f2a0a3; }
+.msg.wide { width: 92%; max-width: 92%; }
+.agent-chart { margin-bottom: 10px; }
+.agent-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.agent-chart .u-legend { font-size: 12px; color: var(--text-dim); }
 .msg-text { white-space: pre-wrap; line-height: 1.5; }
 .msg-tools { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
 .msg-tools summary { cursor: pointer; }

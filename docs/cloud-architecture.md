@@ -283,6 +283,17 @@ sequenceDiagram
   M-->>C: Antwort und SQL zum Aufklappen
 ```
 
+**Werkzeuge des Agenten** (`cloud/agent/kickr_agent/agent.py`, läuft in der Cloud, nicht in der App):
+
+| Werkzeug | Zweck |
+|---|---|
+| `describe_tables` | Tabellen und Spalten kennenlernen |
+| `run_sql` | Lesende SQL-Abfrage, Ergebnis als Text |
+| `create_chart` | SQL-Abfrage, aus der ein Diagramm (Linie oder Balken, bis 4 Reihen) wird. Der Agent liefert nur die Daten (`chart`), **die App zeichnet** sie mit uPlot. Lange Verläufe werden auf ca. 400 Punkte verdichtet |
+
+Google liefert für das ADK kein fertiges Diagramm-Werkzeug (nur Code-Ausführung, die Bilder erzeugen kann).
+`create_chart` ist deshalb selbst gebaut. Vorteil: Die Kurven sehen aus wie im Rest der App.
+
 **Anmeldung App → Agent:** Der Cloud-Run-Dienst ist **nicht öffentlich**. Die App holt sich per
 `gcloud auth print-identity-token` ein kurzlebiges Token deiner Google-Anmeldung. Dafür muss `gcloud`
 installiert und angemeldet sein und dein Konto die Rolle „Cloud Run Invoker" haben (als Projekt-Owner
@@ -370,6 +381,11 @@ python sync.py
 # Agent lokal ausprobieren
 cd agent
 adk web
+
+# Agent nach Code-Änderungen neu in die Cloud bringen (agent.py läuft auf Cloud Run!)
+cd agent
+adk deploy cloud_run --project=kickr-studio-lab --region=europe-west3 --service_name=kickr-coach kickr_agent
+gcloud run services update kickr-coach --region europe-west3 --service-account="kickr-agent@kickr-studio-lab.iam.gserviceaccount.com" --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=kickr-studio-lab,GOOGLE_CLOUD_LOCATION=europe-west4,GEMINI_MODEL=gemini-2.5-flash"
 ```
 
 ## 10. Dateiübersicht
