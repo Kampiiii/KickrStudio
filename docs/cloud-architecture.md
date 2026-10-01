@@ -75,6 +75,7 @@ flowchart LR
       EXT["Externe Tabellen raw_*"]
       TAB["Iceberg-Tabellen<br/>sessions, samples, body, plan"]
       VIEW["View fitness_form<br/>CTL / ATL / TSB"]
+      VIEW2["View vo2max_estimate<br/>VO2max-Schätzung je Einheit"]
     end
     VTX["Vertex AI<br/>Gemini"]
   end
@@ -84,8 +85,10 @@ flowchart LR
   EXT -->|"2. MERGE (sql/sync.sql)"| TAB
   TAB -.->|Dateien| ICE
   TAB --> VIEW
+  TAB --> VIEW2
   ADK -->|"SQL lesen"| TAB
   ADK -->|"SQL lesen"| VIEW
+  ADK -->|"SQL lesen"| VIEW2
   ADK <-->|Fragen/Antworten| VTX
 ```
 
@@ -144,6 +147,19 @@ erDiagram
 
 `fitness_form` ist eine **View** (keine Tabelle) auf `sessions`: TSS pro Tag, daraus CTL
 (Fitness, ca. 42 Tage), ATL (Ermüdung, ca. 7 Tage) und TSB (Form = CTL minus ATL).
+
+`vo2max_estimate` ist ebenfalls eine View, eine Zeile je Einheit mit FTP, zum Zeitpunkt nächstliegendem
+Körpergewicht (Withings) und zwei Schätzformeln — **keine Labormessung**, nur aus Leistungsdaten abgeleitet:
+
+| Spalte | Formel | Aussagekraft |
+|---|---|---|
+| `vo2max_ftp_estimate` | `10.8 × FTP/Gewicht + 7` (ACSM-Näherung) | immer vorhanden, guter laufender Trend |
+| `vo2max_peak_power_estimate` | `(0.01141 × 1-Min-Spitzenleistung + 0.435) × 1000 / Gewicht` (Hawley & Noakes 1992) | nur bei einem echten Maximaltest (z.B. Rampentest) aussagekräftig — bei normalen Einheiten unterschätzt die Spitzenleistung die wahre VO2max |
+
+Anders als `fitness_form` (einmalig von Hand in der Console angelegt) wird `vo2max_estimate`
+bei jeder Synchronisierung per `CREATE OR REPLACE VIEW` mit erzeugt/aktualisiert
+(in `electron/cloud.cjs` → `buildSql()` und in `cloud/sql/sync.sql`) — kein manueller Schritt
+in der Console nötig, und bei einem Neuaufbau des Datasets entsteht sie automatisch wieder mit.
 
 **Bewusst nicht exportiert:** `settings.json`. Sie enthält Strava- und Withings-Zugangsdaten.
 

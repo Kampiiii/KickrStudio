@@ -99,6 +99,30 @@ WHEN NOT MATCHED BY SOURCE THEN DELETE;`)
     parts.push(`\nDELETE FROM ${q(c, 'plan')} WHERE TRUE;`)
   }
 
+  // Abgeleitete View: VO2max-Schätzung je Einheit (keine Messung, zwei Näherungsformeln).
+  // Günstig (CREATE OR REPLACE), läuft deshalb bei jeder Synchronisierung mit.
+  parts.push(`
+CREATE OR REPLACE VIEW ${q(c, 'vo2max_estimate')} AS
+WITH weight_daily AS (
+  SELECT DATE(measured_at) AS day, AVG(weight_kg) AS weight_kg
+  FROM ${q(c, 'body')}
+  GROUP BY day
+),
+sessions_weighted AS (
+  SELECT s.session_id, DATE(s.started_at) AS day, s.started_at, s.ftp_at_time, s.best_60s_power,
+    (SELECT w.weight_kg FROM weight_daily w WHERE w.day <= DATE(s.started_at) ORDER BY w.day DESC LIMIT 1) AS weight_kg
+  FROM ${q(c, 'sessions')} s
+  WHERE s.ftp_at_time IS NOT NULL
+)
+SELECT session_id, day, started_at, ftp_at_time, weight_kg, best_60s_power,
+  ROUND(10.8 * ftp_at_time / weight_kg + 7, 1) AS vo2max_ftp_estimate,
+  CASE WHEN best_60s_power IS NOT NULL AND weight_kg IS NOT NULL
+    THEN ROUND((0.01141 * best_60s_power + 0.435) * 1000 / weight_kg, 1)
+    ELSE NULL END AS vo2max_peak_power_estimate
+FROM sessions_weighted
+WHERE weight_kg IS NOT NULL
+ORDER BY day;`)
+
   return parts.join('\n')
 }
 

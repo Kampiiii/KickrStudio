@@ -22,6 +22,7 @@ const SUGGESTIONS = [
   'Vergleiche meine letzten beiden Einheiten. Wo gibt es Unterschiede bei Herzfrequenz und Kadenz?',
   'Zeig mir die Herzfrequenz- und Leistungskurve meiner letzten Einheit als Diagramm.',
   'Wie hat sich mein Gewicht in den letzten 30 Tagen verändert?',
+  'Wie hat sich meine geschätzte VO2max über die Zeit entwickelt?',
 ]
 
 export default function CoachPage() {
