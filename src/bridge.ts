@@ -36,6 +36,12 @@ export interface SessionMeta {
   stravaActivityId?: number | null
   uploadedAt?: string
   cloudSyncedAt?: string
+  // Lauf-Import von Strava (sport fehlt/='bike' für reguläre Kickr-Einheiten):
+  sport?: 'bike' | 'run'
+  source?: 'app' | 'strava'
+  distanceM?: number
+  elevationGainM?: number | null
+  avgPaceSecPerKm?: number | null
 }
 
 export interface Session extends SessionMeta {
@@ -114,6 +120,7 @@ export interface KickrBridge {
   stravaConnect(): Promise<{ ok: boolean; athleteName?: string; error?: string }>
   stravaDisconnect(): Promise<boolean>
   stravaUpload(sessionId: string): Promise<{ ok: boolean; activityId?: number | null; pending?: boolean; error?: string }>
+  stravaImportRuns(): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }>
   appInfo(): Promise<{ dataDir: string; mcpServerPath: string; nodeHint: string; version: string }>
   openExternal(url: string): Promise<void>
   openDataDir(): Promise<void>
@@ -206,6 +213,7 @@ const browserMock: KickrBridge = {
   stravaConnect: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaDisconnect: async () => true,
   stravaUpload: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
+  stravaImportRuns: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   appInfo: async () => ({ dataDir: '(Browser-Modus)', mcpServerPath: '(Browser-Modus)', nodeHint: 'node', version: '0.1.0-dev' }),
   openExternal: async (url) => { window.open(url, '_blank') },
   openDataDir: async () => {},

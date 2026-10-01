@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('kickr', {
   stravaConnect: () => ipcRenderer.invoke('strava:connect'),
   stravaDisconnect: () => ipcRenderer.invoke('strava:disconnect'),
   stravaUpload: (sessionId) => ipcRenderer.invoke('strava:upload', sessionId),
+  stravaImportRuns: () => ipcRenderer.invoke('strava:importRuns'),
 
   // App
   appInfo: () => ipcRenderer.invoke('app:info'),

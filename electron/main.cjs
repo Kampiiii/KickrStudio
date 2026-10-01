@@ -299,6 +299,10 @@ ipcMain.handle('strava:upload', async (_e, sessionId) => {
     return { ok: false, error: String(e.message || e) }
   }
 })
+ipcMain.handle('strava:importRuns', async () => {
+  try { return await strava.importRuns() }
+  catch (e) { return { ok: false, error: String(e.message || e) } }
+})
 
 // ---------- Dateiänderungen (MCP-Server schreibt Workouts/Queue) ----------
 function watchData() {

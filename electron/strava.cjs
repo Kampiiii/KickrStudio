@@ -7,6 +7,7 @@ const store = require('./store.cjs')
 const AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const TOKEN_URL = 'https://www.strava.com/oauth/token'
 const UPLOAD_URL = 'https://www.strava.com/api/v3/uploads'
+const API_URL = 'https://www.strava.com/api/v3'
 
 // Startet einen temporären Callback-Server, öffnet den Browser und wartet auf den OAuth-Code.
 function connect() {
@@ -52,7 +53,10 @@ function connect() {
     server.on('error', (e) => { clearTimeout(timeout); resolve({ ok: false, error: `Callback-Port ${port} belegt: ${e.message}` }) })
     server.listen(port, '127.0.0.1', () => {
       const redirect = encodeURIComponent(`http://localhost:${port}/strava/callback`)
-      shell.openExternal(`${AUTH_URL}?client_id=${clientId}&response_type=code&redirect_uri=${redirect}&scope=activity:write,read&approval_prompt=auto`)
+      // activity:read_all (statt nur "read") ist nötig, um Aktivitätsdetails zu lesen -- auch eigene
+      // private Läufe, nicht nur öffentliche. War die App vorher nur mit "read" verbunden, bitte einmal
+      // trennen und neu verbinden, damit Strava den neuen Scope freigibt.
+      shell.openExternal(`${AUTH_URL}?client_id=${clientId}&response_type=code&redirect_uri=${redirect}&scope=activity:write,activity:read_all&approval_prompt=auto`)
     })
   })
 }
@@ -98,10 +102,61 @@ async function uploadTcx(tcxString, name, description) {
   return { activityId: null, pending: true }
 }
 
+// Läuft über die Strava-Aktivitätsliste (neueste zuerst, paginiert) und importiert alle
+// Lauf-Aktivitäten, die lokal noch nicht als Session vorliegen. Radfahrten lässt sie bewusst aus --
+// die kommen bereits über den eigenen Upload-Weg in den Verlauf.
+async function importRuns() {
+  const token = await getFreshToken()
+  const existing = new Set(
+    store.listSessions().map(s => s.stravaActivityId).filter(Boolean)
+  )
+  let imported = 0, skipped = 0, page = 1
+  const RUN_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun'])
+
+  while (true) {
+    const r = await fetch(`${API_URL}/athlete/activities?per_page=100&page=${page}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!r.ok) throw new Error(`Strava-Abfrage fehlgeschlagen (HTTP ${r.status}): ${(await r.text()).slice(0, 300)}`)
+    const activities = await r.json()
+    if (!Array.isArray(activities) || activities.length === 0) break
+
+    for (const a of activities) {
+      if (!RUN_TYPES.has(a.type) && !RUN_TYPES.has(a.sport_type)) continue
+      if (existing.has(a.id)) { skipped++; continue }
+      store.saveSession({
+        id: 'strava-' + a.id,
+        name: a.name || 'Lauf',
+        startedAt: a.start_date,
+        durationSec: a.moving_time,
+        sport: 'run',
+        distanceM: a.distance,
+        elevationGainM: a.total_elevation_gain ?? null,
+        avgPaceSecPerKm: a.average_speed ? Math.round(1000 / a.average_speed) : null,
+        ftpAtTime: 0,
+        summary: {
+          avgPower: 0, maxPower: 0, np: 0, if: 0, tss: 0, kj: 0,
+          avgHr: a.average_heartrate ?? null, maxHr: a.max_heartrate ?? null, avgCadence: null,
+          zoneSeconds: [], best60s: 0,
+        },
+        stravaActivityId: a.id,
+        source: 'strava',
+        samples: [],
+      })
+      existing.add(a.id)
+      imported++
+    }
+    if (activities.length < 100) break
+    page++
+    if (page > 20) break // Sicherheitsgrenze (2000 Aktivitäten) gegen Endlosschleifen
+  }
+  return { ok: true, imported, skipped }
+}
+
 function disconnect() {
   const s = store.getSettings()
   s.strava = { ...s.strava, accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' }
   store.saveSettings(s)
 }
 
-module.exports = { connect, uploadTcx, disconnect }
+module.exports = { connect, uploadTcx, importRuns, disconnect }

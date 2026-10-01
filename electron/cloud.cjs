@@ -146,7 +146,9 @@ async function sync() {
   const { BigQuery } = require('@google-cloud/bigquery')
   const bucket = new Storage({ projectId: c.projectId }).bucket(c.bucket)
 
-  const sessions = readSessionFiles()
+  // Läufe (von Strava importiert) bewusst außen vor: Die sessions-Tabelle in BigQuery ist aktuell
+  // rad-spezifisch (Watt/FTP/TSS). Eine eigene Sport-Spalte/Schema-Erweiterung ist ein späterer Schritt.
+  const sessions = readSessionFiles().filter(s => !s.sport || s.sport === 'bike')
   const pending = sessions.filter(s => !s.cloudSyncedAt || (s.stravaActivityId || null) !== (s.cloudStravaId || null))
   for (const s of pending) {
     // eine Zeile je Einheit; cloud*-Felder sind lokale Statusfelder und werden nicht mit hochgeladen
