@@ -1,5 +1,10 @@
 -- Idempotente Synchronisation: Rohdaten (Parquet in GCS) -> Iceberg-Tabellen.
 -- Beliebig oft ausführbar, erzeugt keine Duplikate.
+--
+-- Bekannte Lücke: Dieser Batch-Pfad (python sync.py / export_parquet.py) kennt die Sport-/Lauf-Felder
+-- (sport, source, distance_m, elevation_gain_m, avg_pace_sec_per_km, samples.pace_sec_per_km/distanceM/
+-- altitudeM) noch nicht -- nur der Live-Pfad in der App (electron/cloud.cjs) schreibt sie. Beim nächsten
+-- Ausführen dieses Skripts entsprechend export_parquet.py und die MERGE-Spalten unten ergänzen.
 
 -- 1) Externe Tabellen über die Rohdaten (nur Leseansicht, keine Kopie)
 CREATE OR REPLACE EXTERNAL TABLE `kickr-studio-lab.kickr.raw_sessions`
@@ -62,10 +67,11 @@ WITH weight_daily AS (
   GROUP BY day
 ),
 sessions_weighted AS (
+  -- nur Rad: NULL = alte Zeilen von vor der sport-Spalte, implizit Rad
   SELECT s.session_id, DATE(s.started_at) AS day, s.started_at, s.ftp_at_time, s.best_60s_power, w.weight_kg
   FROM `kickr-studio-lab.kickr.sessions` s
   JOIN weight_daily w ON w.day <= DATE(s.started_at)
-  WHERE s.ftp_at_time IS NOT NULL
+  WHERE s.ftp_at_time IS NOT NULL AND (s.sport IS NULL OR s.sport = 'bike')
   QUALIFY ROW_NUMBER() OVER (PARTITION BY s.session_id ORDER BY w.day DESC) = 1
 )
 SELECT session_id, day, started_at, ftp_at_time, weight_kg, best_60s_power,

@@ -32,8 +32,10 @@ CREATE OR REPLACE EXTERNAL TABLE ${q(c, 'raw_json_sessions')} (
   id STRING, name STRING, workoutId STRING, startedAt STRING, durationSec INT64, ftpAtTime INT64,
   summary STRUCT<avgPower FLOAT64, maxPower FLOAT64, np FLOAT64, \`if\` FLOAT64, tss FLOAT64, kj FLOAT64,
                  avgHr FLOAT64, maxHr FLOAT64, avgCadence FLOAT64, best60s FLOAT64>,
-  stravaActivityId INT64,
-  samples ARRAY<STRUCT<t INT64, power FLOAT64, hr FLOAT64, cadence FLOAT64, target FLOAT64>>
+  stravaActivityId INT64, sport STRING, source STRING,
+  distanceM FLOAT64, elevationGainM FLOAT64, avgPaceSecPerKm FLOAT64,
+  samples ARRAY<STRUCT<t INT64, power FLOAT64, hr FLOAT64, cadence FLOAT64, target FLOAT64,
+                        paceSecPerKm FLOAT64, distanceM FLOAT64, altitudeM FLOAT64>>
 ) OPTIONS (format = 'NEWLINE_DELIMITED_JSON', uris = ['${uri(c, 'sessions')}'], ignore_unknown_values = true);
 
 MERGE ${q(c, 'sessions')} t
@@ -43,7 +45,9 @@ USING (
          summary.avgPower AS avg_power, summary.maxPower AS max_power, summary.np AS normalized_power,
          summary.\`if\` AS intensity_factor, summary.tss AS tss, summary.kj AS kilojoules,
          summary.avgHr AS avg_hr, summary.maxHr AS max_hr, summary.avgCadence AS avg_cadence,
-         summary.best60s AS best_60s_power, stravaActivityId AS strava_activity_id
+         summary.best60s AS best_60s_power, stravaActivityId AS strava_activity_id,
+         IFNULL(sport, 'bike') AS sport, source,
+         distanceM AS distance_m, elevationGainM AS elevation_gain_m, avgPaceSecPerKm AS avg_pace_sec_per_km
   FROM ${q(c, 'raw_json_sessions')}
 ) s
 ON t.session_id = s.session_id
@@ -54,7 +58,8 @@ MERGE ${q(c, 'samples')} t
 USING (
   SELECT r.id AS session_id, smp.t AS t_sec,
          TIMESTAMP_ADD(TIMESTAMP(r.startedAt), INTERVAL smp.t SECOND) AS ts,
-         smp.power AS power, smp.hr AS hr, smp.cadence AS cadence, smp.target AS target_power
+         smp.power AS power, smp.hr AS hr, smp.cadence AS cadence, smp.target AS target_power,
+         smp.paceSecPerKm AS pace_sec_per_km, smp.distanceM AS distance_m, smp.altitudeM AS altitude_m
   FROM ${q(c, 'raw_json_sessions')} r, UNNEST(r.samples) smp
 ) s
 ON t.session_id = s.session_id AND t.t_sec = s.t_sec AND DATE(t.ts) = DATE(s.ts)
@@ -111,10 +116,11 @@ WITH weight_daily AS (
   GROUP BY day
 ),
 sessions_weighted AS (
+  -- nur Rad: NULL = alte Zeilen von vor der sport-Spalte, implizit Rad
   SELECT s.session_id, DATE(s.started_at) AS day, s.started_at, s.ftp_at_time, s.best_60s_power, w.weight_kg
   FROM ${q(c, 'sessions')} s
   JOIN weight_daily w ON w.day <= DATE(s.started_at)
-  WHERE s.ftp_at_time IS NOT NULL
+  WHERE s.ftp_at_time IS NOT NULL AND (s.sport IS NULL OR s.sport = 'bike')
   QUALIFY ROW_NUMBER() OVER (PARTITION BY s.session_id ORDER BY w.day DESC) = 1
 )
 SELECT session_id, day, started_at, ftp_at_time, weight_kg, best_60s_power,
@@ -146,9 +152,10 @@ async function sync() {
   const { BigQuery } = require('@google-cloud/bigquery')
   const bucket = new Storage({ projectId: c.projectId }).bucket(c.bucket)
 
-  // Läufe (von Strava importiert) bewusst außen vor: Die sessions-Tabelle in BigQuery ist aktuell
-  // rad-spezifisch (Watt/FTP/TSS). Eine eigene Sport-Spalte/Schema-Erweiterung ist ein späterer Schritt.
-  const sessions = readSessionFiles().filter(s => !s.sport || s.sport === 'bike')
+  // Von Strava importierte Einheiten (Lauf/Outdoor-Fahrt) erst synchronisieren, wenn ihre Sekundenwerte
+  // nachgeladen sind (hasStreams) -- sonst würde eine leere Kurve hochgeladen und nie wieder nachgezogen,
+  // weil cloudSyncedAt danach schon gesetzt wäre. Eigene Kickr-Einheiten sind davon nicht betroffen.
+  const sessions = readSessionFiles().filter(s => s.source !== 'strava' || s.hasStreams)
   const pending = sessions.filter(s => !s.cloudSyncedAt || (s.stravaActivityId || null) !== (s.cloudStravaId || null))
   for (const s of pending) {
     // eine Zeile je Einheit; cloud*-Felder sind lokale Statusfelder und werden nicht mit hochgeladen
