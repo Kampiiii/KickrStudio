@@ -3,6 +3,7 @@ import { useApp, setState, showToast } from '../state'
 import { bridge, type Session, type SessionMeta } from '../bridge'
 import { fmtDuration } from '../engine/model'
 import SummaryView from '../components/SummaryView'
+import SessionChart from '../components/SessionChart'
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -125,7 +126,7 @@ export default function HistoryPage() {
         <div className="card" style={{ padding: 0 }}>
           <table className="list">
             <thead><tr>
-              <th>Datum</th><th>Workout</th><th>Dauer</th><th>Distanz</th><th>Ø Pace</th><th>Ø HF</th><th>Strava</th><th></th>
+              <th>Datum</th><th>Workout</th><th>Dauer</th><th>Distanz</th><th>Ø Pace</th><th>Ø HF</th><th>Strava</th><th>Cloud</th><th></th>
             </tr></thead>
             <tbody>
               {active.map(s => <RunRow key={s.id} meta={s} onOpen={async () => {
@@ -180,7 +181,7 @@ function BikeRow({ meta, onOpen }: { meta: SessionMeta; onOpen: () => void }) {
       )}
       <td>{sum?.avgHr ?? '–'}</td>
       <td>{meta.stravaActivityId ? '✓' : ''}</td>
-      <td title={meta.cloudSyncedAt ? `Synchronisiert ${meta.cloudSyncedAt}` : outdoor ? 'Outdoor-Fahrten werden noch nicht synchronisiert' : 'Noch nicht in der Cloud'}>{meta.cloudSyncedAt ? '☁' : ''}</td>
+      <td title={meta.cloudSyncedAt ? `Synchronisiert ${meta.cloudSyncedAt}` : outdoor && !meta.hasStreams ? 'Wartet auf Kurven-Nachladung (Einstellungen → Strava)' : 'Noch nicht in der Cloud'}>{meta.cloudSyncedAt ? '☁' : ''}</td>
       <DeleteButton id={meta.id} />
     </tr>
   )
@@ -196,6 +197,7 @@ function RunRow({ meta, onOpen }: { meta: SessionMeta; onOpen: () => void }) {
       <td>{meta.avgPaceSecPerKm ? fmtPace(meta.avgPaceSecPerKm) : '–'}</td>
       <td>{meta.summary?.avgHr ?? '–'}</td>
       <td>{meta.stravaActivityId ? '✓' : ''}</td>
+      <td title={meta.cloudSyncedAt ? `Synchronisiert ${meta.cloudSyncedAt}` : !meta.hasStreams ? 'Wartet auf Kurven-Nachladung (Einstellungen → Strava)' : 'Noch nicht in der Cloud'}>{meta.cloudSyncedAt ? '☁' : ''}</td>
       <DeleteButton id={meta.id} />
     </tr>
   )
@@ -255,7 +257,9 @@ function ImportedSummaryView({ session }: { session: Session }) {
         {s.avgHr != null && <Stat label="Ø HF" value={s.avgHr} unit="bpm" />}
         {s.maxHr != null && <Stat label="Max HF" value={s.maxHr} unit="bpm" />}
       </div>
-      <div className="card hint">Von Strava importiert — keine Sekundenwerte, daher kein Kurvenverlauf.</div>
+      {session.samples.length > 1
+        ? <div className="card"><SessionChart samples={session.samples} showPower={false} /></div>
+        : <div className="card hint">Von Strava importiert — noch keine Sekundenwerte geladen (Einstellungen → Strava → "Alle Kurven nachladen").</div>}
     </div>
   )
 }
