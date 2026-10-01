@@ -47,6 +47,12 @@ contextBridge.exposeInMainWorld('kickr', {
   stravaDisconnect: () => ipcRenderer.invoke('strava:disconnect'),
   stravaUpload: (sessionId) => ipcRenderer.invoke('strava:upload', sessionId),
   stravaImportActivities: () => ipcRenderer.invoke('strava:importActivities'),
+  stravaBackfillStreams: () => ipcRenderer.invoke('strava:backfillStreams'),
+  onStravaBackfillProgress: (cb) => {
+    const listener = (_e, p) => cb(p)
+    ipcRenderer.on('strava:backfillProgress', listener)
+    return () => ipcRenderer.removeListener('strava:backfillProgress', listener)
+  },
 
   // App
   appInfo: () => ipcRenderer.invoke('app:info'),

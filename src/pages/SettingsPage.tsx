@@ -9,9 +9,12 @@ export default function SettingsPage() {
   const [info, setInfo] = useState<{ dataDir: string; mcpServerPath: string; nodeHint: string } | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [withingsConnecting, setWithingsConnecting] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; failed: number; total: number; last: string } | null>(null)
 
   useEffect(() => { bridge.appInfo().then(setInfo) }, [])
   useEffect(() => { setS(app.settings) }, [app.settings])
+  useEffect(() => bridge.onStravaBackfillProgress(setBackfillProgress), [])
 
   if (!s) return null
 
@@ -39,6 +42,16 @@ export default function SettingsPage() {
       showToast(`Mit Strava verbunden${r.athleteName ? `: ${r.athleteName}` : ''} ✓`)
       setState({ settings: await bridge.getSettings() })
     } else showToast(r.error || 'Verbindung fehlgeschlagen', 'err')
+  }
+
+  const backfillStreams = async () => {
+    setBackfilling(true)
+    setBackfillProgress(null)
+    const r = await bridge.stravaBackfillStreams()
+    setBackfilling(false)
+    if (r.ok) showToast(`Kurven geladen: ${r.done} ✓${r.failed ? `, ${r.failed} fehlgeschlagen` : ''}`)
+    else showToast(r.error || 'Nachladen fehlgeschlagen', 'err')
+    setState({ sessions: await bridge.listSessions() })
   }
 
   const withingsConnect = async () => {
@@ -143,6 +156,21 @@ export default function SettingsPage() {
               Einmalig nötig: Unter <a style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => bridge.openExternal('https://www.strava.com/settings/api')}>strava.com/settings/api</a> eine
               App anlegen („Autorisierungs-Callback-Domain“: <b>localhost</b>), dann Client-ID und Secret hier eintragen und verbinden.
             </div>
+            {s.strava.refreshToken && (
+              <>
+                <div className="full row">
+                  <button className="btn small" disabled={backfilling} onClick={backfillStreams}>
+                    {backfilling ? 'Lade Kurven nach …' : '📈 Alle Kurven nachladen'}
+                  </button>
+                </div>
+                <div className="full hint">
+                  Lädt Sekundenwerte (Puls, Watt, Pace …) für importierte Strava-Einheiten nach, die noch keine haben.
+                  Bei vielen Einheiten dauert das wegen Stravas Rate-Limit spürbar (grob 1 pro 5 Sekunden) — läuft
+                  im Hintergrund weiter, auch wenn du die Seite wechselst.
+                  {backfillProgress && ` Fortschritt: ${backfillProgress.done + backfillProgress.failed} / ${backfillProgress.total} (zuletzt: ${backfillProgress.last}).`}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -55,11 +55,18 @@ export default function HistoryPage() {
   const importActivities = async () => {
     setImporting(true)
     const r = await bridge.stravaImportActivities()
-    setImporting(false)
     if (r.ok) {
-      showToast(r.imported ? `${r.imported} Einheit(en) von Strava importiert ✓` : 'Keine neuen Strava-Aktivitäten gefunden.')
+      showToast(r.imported ? `${r.imported} Einheit(en) von Strava importiert — lade Kurven nach …` : 'Keine neuen Strava-Aktivitäten gefunden.')
       setState({ sessions: await bridge.listSessions() })
+      // Nur für neu Importierte: Sekundenwerte sind pro Einheit eine eigene, gedrosselte Anfrage,
+      // deshalb separat danach statt im Import selbst (verzögert die Rückmeldung sonst unnötig).
+      if (r.imported) {
+        const b = await bridge.stravaBackfillStreams()
+        if (b.ok) showToast(`Kurven für ${b.done} Einheit(en) geladen ✓`)
+        setState({ sessions: await bridge.listSessions() })
+      }
     } else showToast(r.error || 'Import fehlgeschlagen', 'err')
+    setImporting(false)
   }
 
   if (detail) return <SessionDetail session={detail} onClose={() => setDetail(null)} />

@@ -303,6 +303,13 @@ ipcMain.handle('strava:importActivities', async () => {
   try { return await strava.importActivities() }
   catch (e) { return { ok: false, error: String(e.message || e) } }
 })
+ipcMain.handle('strava:backfillStreams', async (e) => {
+  try {
+    return await strava.backfillStreams({
+      onProgress: (p) => e.sender.send('strava:backfillProgress', p),
+    })
+  } catch (err) { return { ok: false, error: String(err.message || err) } }
+})
 
 // ---------- Dateiänderungen (MCP-Server schreibt Workouts/Queue) ----------
 function watchData() {

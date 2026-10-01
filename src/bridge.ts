@@ -36,16 +36,21 @@ export interface SessionMeta {
   stravaActivityId?: number | null
   uploadedAt?: string
   cloudSyncedAt?: string
-  // Lauf-Import von Strava (sport fehlt/='bike' für reguläre Kickr-Einheiten):
+  // Lauf-/Outdoor-Import von Strava (sport fehlt/='bike' für reguläre Kickr-Einheiten):
   sport?: 'bike' | 'run'
   source?: 'app' | 'strava'
   distanceM?: number
   elevationGainM?: number | null
   avgPaceSecPerKm?: number | null
+  hasStreams?: boolean // Sekundenwerte wurden (versucht) nachzuladen -- verhindert endlose Wiederholversuche
 }
 
 export interface Session extends SessionMeta {
-  samples: { t: number; power: number; hr: number | null; cadence: number | null; target: number }[]
+  samples: {
+    t: number; power: number; hr: number | null; cadence: number | null; target: number
+    // nur bei importierten Lauf-/Outdoor-Einheiten befüllt (Strava-Streams):
+    paceSecPerKm?: number | null; distanceM?: number | null; altitudeM?: number | null
+  }[]
 }
 
 export interface QueuedWorkout { workout: Workout; note?: string; queuedAt: string }
@@ -121,6 +126,8 @@ export interface KickrBridge {
   stravaDisconnect(): Promise<boolean>
   stravaUpload(sessionId: string): Promise<{ ok: boolean; activityId?: number | null; pending?: boolean; error?: string }>
   stravaImportActivities(): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }>
+  stravaBackfillStreams(): Promise<{ ok: boolean; done?: number; failed?: number; total?: number; error?: string }>
+  onStravaBackfillProgress(cb: (p: { done: number; failed: number; total: number; last: string }) => void): () => void
   appInfo(): Promise<{ dataDir: string; mcpServerPath: string; nodeHint: string; version: string }>
   openExternal(url: string): Promise<void>
   openDataDir(): Promise<void>
@@ -214,6 +221,8 @@ const browserMock: KickrBridge = {
   stravaDisconnect: async () => true,
   stravaUpload: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaImportActivities: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
+  stravaBackfillStreams: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
+  onStravaBackfillProgress: () => () => {},
   appInfo: async () => ({ dataDir: '(Browser-Modus)', mcpServerPath: '(Browser-Modus)', nodeHint: 'node', version: '0.1.0-dev' }),
   openExternal: async (url) => { window.open(url, '_blank') },
   openDataDir: async () => {},

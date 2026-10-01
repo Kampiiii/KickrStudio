@@ -54,9 +54,11 @@ function connect() {
     server.listen(port, '127.0.0.1', () => {
       const redirect = encodeURIComponent(`http://localhost:${port}/strava/callback`)
       // activity:read_all (statt nur "read") ist nötig, um Aktivitätsdetails zu lesen -- auch eigene
-      // private Läufe, nicht nur öffentliche. War die App vorher nur mit "read" verbunden, bitte einmal
-      // trennen und neu verbinden, damit Strava den neuen Scope freigibt.
-      shell.openExternal(`${AUTH_URL}?client_id=${clientId}&response_type=code&redirect_uri=${redirect}&scope=activity:write,activity:read_all&approval_prompt=auto`)
+      // private ("Nur ich"-)Aktivitäten, nicht nur öffentliche. approval_prompt=force statt auto:
+      // Strava überspringt den Freigabe-Dialog sonst bei einer bereits autorisierten App, selbst wenn
+      // sich der angefragte Scope geändert hat -- der erweiterte Zugriff würde dann NICHT erteilt,
+      // ohne dass das sichtbar wäre (Fehler zeigt sich erst beim Datenzugriff als 404).
+      shell.openExternal(`${AUTH_URL}?client_id=${clientId}&response_type=code&redirect_uri=${redirect}&scope=activity:write,activity:read_all&approval_prompt=force`)
     })
   })
 }
@@ -170,10 +172,71 @@ async function importActivities() {
   return { ok: true, imported, skipped }
 }
 
+const STREAM_KEYS = 'time,heartrate,watts,cadence,velocity_smooth,distance,altitude'
+
+// Sekundenwerte einer Aktivität holen. 404 heißt: keine Streams vorhanden (z.B. manueller Eintrag) --
+// kein Fehler, einfach keine Kurve. Bei 429 (Rate-Limit trotz Drosselung) einmal nach Retry-After warten.
+async function fetchStreams(token, activityId) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch(`${API_URL}/activities/${activityId}/streams?keys=${STREAM_KEYS}&key_by_type=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (r.status === 404) return null
+    if (r.status === 429) {
+      const wait = (Number(r.headers.get('Retry-After')) || 900) * 1000
+      await new Promise(res => setTimeout(res, wait))
+      continue
+    }
+    if (!r.ok) throw new Error(`Streams-Abfrage fehlgeschlagen (HTTP ${r.status}): ${(await r.text()).slice(0, 200)}`)
+    return r.json()
+  }
+  throw new Error('Weiterhin Rate-Limit nach Wartezeit.')
+}
+
+function streamsToSamples(streams) {
+  const time = streams?.time?.data || []
+  if (time.length === 0) return []
+  const hr = streams.heartrate?.data, watts = streams.watts?.data, cad = streams.cadence?.data
+  const vel = streams.velocity_smooth?.data, dist = streams.distance?.data, alt = streams.altitude?.data
+  return time.map((t, i) => ({
+    t,
+    power: watts?.[i] ?? 0,
+    hr: hr?.[i] ?? null,
+    cadence: cad?.[i] ?? null,
+    target: 0,
+    paceSecPerKm: vel?.[i] ? Math.round(1000 / vel[i]) : null,
+    distanceM: dist?.[i] ?? null,
+    altitudeM: alt?.[i] ?? null,
+  }))
+}
+
+// Lädt Sekundenwerte für alle importierten Strava-Einheiten nach, die noch keine haben.
+// Feste Pause zwischen Aufrufen hält uns sicher unter Stravas Kurzzeit-Limit (~200/15 Min.).
+// Robust gegen Unterbrechung: hasStreams markiert erledigte Einheiten, ein Neustart macht weiter.
+async function backfillStreams({ delayMs = 5000, limit, onProgress } = {}) {
+  let pending = store.listSessions().filter(s => s.source === 'strava' && !s.hasStreams)
+  if (limit) pending = pending.slice(0, limit)
+  let done = 0, failed = 0
+  for (const meta of pending) {
+    try {
+      const token = await getFreshToken()
+      const streams = await fetchStreams(token, meta.stravaActivityId)
+      store.updateSession(meta.id, { samples: streams ? streamsToSamples(streams) : [], hasStreams: true })
+      done++
+    } catch (e) {
+      failed++
+      console.error(`Streams-Import fehlgeschlagen für ${meta.id}:`, e.message)
+    }
+    onProgress?.({ done, failed, total: pending.length, last: meta.name })
+    await new Promise(res => setTimeout(res, delayMs))
+  }
+  return { ok: true, done, failed, total: pending.length }
+}
+
 function disconnect() {
   const s = store.getSettings()
   s.strava = { ...s.strava, accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' }
   store.saveSettings(s)
 }
 
-module.exports = { connect, uploadTcx, importActivities, disconnect }
+module.exports = { connect, uploadTcx, importActivities, backfillStreams, disconnect }
