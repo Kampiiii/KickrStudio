@@ -299,8 +299,8 @@ ipcMain.handle('strava:upload', async (_e, sessionId) => {
     return { ok: false, error: String(e.message || e) }
   }
 })
-ipcMain.handle('strava:importRuns', async () => {
-  try { return await strava.importRuns() }
+ipcMain.handle('strava:importActivities', async () => {
+  try { return await strava.importActivities() }
   catch (e) { return { ok: false, error: String(e.message || e) } }
 })
 

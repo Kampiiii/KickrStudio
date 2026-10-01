@@ -102,16 +102,24 @@ async function uploadTcx(tcxString, name, description) {
   return { activityId: null, pending: true }
 }
 
-// Läuft über die Strava-Aktivitätsliste (neueste zuerst, paginiert) und importiert alle
-// Lauf-Aktivitäten, die lokal noch nicht als Session vorliegen. Radfahrten lässt sie bewusst aus --
-// die kommen bereits über den eigenen Upload-Weg in den Verlauf.
-async function importRuns() {
+// Strava-Aktivitätstypen -> unser Sport-Feld. Indoor-Kickr-Fahrten sind hier bewusst NICHT
+// dabei als eigener Fall -- sie kommen über den App-eigenen Upload in den Verlauf und werden
+// unten über die Strava-Activity-ID automatisch übersprungen (keine Dopplung).
+const SPORT_BY_TYPE = {
+  Run: 'run', TrailRun: 'run', VirtualRun: 'run',
+  Ride: 'bike', VirtualRide: 'bike', GravelRide: 'bike', MountainBikeRide: 'bike', EBikeRide: 'bike',
+}
+
+// Läuft über die Strava-Aktivitätsliste (neueste zuerst, paginiert) und importiert alle Lauf- und
+// Rad-Aktivitäten, die lokal noch nicht als Session vorliegen (Dedupe über die Activity-ID --
+// erfasst auch die eigenen Kickr-Uploads, die bereits lokal existieren, und lässt sie unangetastet).
+async function importActivities() {
   const token = await getFreshToken()
+  const settings = store.getSettings()
   const existing = new Set(
     store.listSessions().map(s => s.stravaActivityId).filter(Boolean)
   )
   let imported = 0, skipped = 0, page = 1
-  const RUN_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun'])
 
   while (true) {
     const r = await fetch(`${API_URL}/athlete/activities?per_page=100&page=${page}`, {
@@ -122,22 +130,31 @@ async function importRuns() {
     if (!Array.isArray(activities) || activities.length === 0) break
 
     for (const a of activities) {
-      if (!RUN_TYPES.has(a.type) && !RUN_TYPES.has(a.sport_type)) continue
+      const sport = SPORT_BY_TYPE[a.type] || SPORT_BY_TYPE[a.sport_type]
+      if (!sport) continue
       if (existing.has(a.id)) { skipped++; continue }
+
+      // Rad: wenn ein Leistungsmesser Daten geliefert hat, grobe IF/TSS gegen die aktuelle FTP
+      // schätzen (Strava liefert nur Zusammenfassungen, keine Sekundenwerte -- daher nur eine Näherung).
+      const np = sport === 'bike' ? (a.weighted_average_watts || a.average_watts || 0) : 0
+      const ifVal = settings.ftp && np ? np / settings.ftp : 0
+      const tss = settings.ftp && np ? (a.moving_time / 3600) * ifVal * ifVal * 100 : 0
+
       store.saveSession({
         id: 'strava-' + a.id,
-        name: a.name || 'Lauf',
+        name: a.name || (sport === 'run' ? 'Lauf' : 'Fahrt'),
         startedAt: a.start_date,
         durationSec: a.moving_time,
-        sport: 'run',
+        sport,
         distanceM: a.distance,
         elevationGainM: a.total_elevation_gain ?? null,
-        avgPaceSecPerKm: a.average_speed ? Math.round(1000 / a.average_speed) : null,
-        ftpAtTime: 0,
+        avgPaceSecPerKm: sport === 'run' && a.average_speed ? Math.round(1000 / a.average_speed) : null,
+        ftpAtTime: sport === 'bike' ? settings.ftp : 0,
         summary: {
-          avgPower: 0, maxPower: 0, np: 0, if: 0, tss: 0, kj: 0,
-          avgHr: a.average_heartrate ?? null, maxHr: a.max_heartrate ?? null, avgCadence: null,
-          zoneSeconds: [], best60s: 0,
+          avgPower: a.average_watts ?? 0, maxPower: a.max_watts ?? 0, np, if: Math.round(ifVal * 100) / 100,
+          tss: Math.round(tss * 10) / 10, kj: a.kilojoules ?? 0,
+          avgHr: a.average_heartrate ?? null, maxHr: a.max_heartrate ?? null,
+          avgCadence: a.average_cadence ?? null, zoneSeconds: [], best60s: 0,
         },
         stravaActivityId: a.id,
         source: 'strava',
@@ -159,4 +176,4 @@ function disconnect() {
   store.saveSettings(s)
 }
 
-module.exports = { connect, uploadTcx, importRuns, disconnect }
+module.exports = { connect, uploadTcx, importActivities, disconnect }
