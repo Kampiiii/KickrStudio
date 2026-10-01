@@ -241,7 +241,8 @@ ipcMain.handle('debug:openLogFolder', () => shell.showItemInFolder(LOG_FILE))
 
 // ---------- IPC: Google Cloud (Sync + Coach) ----------
 const cloudCall = (fn) => async (_e, ...args) => {
-  try { return await fn(...args) } catch (e) { return { ok: false, error: String(e?.message || e) } }
+  try { return await fn(...args) }
+  catch (e) { logDiag('CLOUD-ERROR: ' + (e?.stack || e)); return { ok: false, error: String(e?.message || e) } }
 }
 ipcMain.handle('cloud:test', cloudCall(() => cloud.test()))
 ipcMain.handle('cloud:sync', cloudCall(() => cloud.sync()))
