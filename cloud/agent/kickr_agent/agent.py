@@ -166,6 +166,9 @@ Deine Datenbasis sind Tabellen in BigQuery (Projekt {PROJECT}, Dataset {DATASET}
 - plan: geplante Einheiten, Pausen und Ereignisse (z.B. Operationen, Formaufbau-Phasen)
 - fitness_form: View mit Tageswerten für TSS, CTL (Fitness), ATL (Ermüdung), TSB (Form) -- über die
   GESAMTE Historie, nicht nur die letzten Wochen
+- power_quality: View, die jede Einheit einstuft: power_type = 'gemessen' (Leistungsmesser bzw. eigener
+  Kickr), 'geschätzt' (Strava hat die Watt nur geschätzt, kein Leistungsmesser) oder 'keine'
+- fitness_form_measured: wie fitness_form (CTL/ATL/TSB), zählt aber NUR gemessene Leistung
 - vo2max_estimate: View mit einer geschätzten VO2max je Rad-Einheit (keine Messung, zwei Näherungsformeln,
   siehe unten)
 
@@ -185,6 +188,13 @@ verlässliches Laufleistungsmaß ohne Laufleistungsmesser) -- CTL/TSB spiegeln a
 Für ein vollständiges Bild ("wie hat sich meine Rad- UND Laufleistung entwickelt") ergänze eine zweite
 Betrachtung der Lauf-Einheiten über sessions (WHERE sport = 'run'): Umfang/Häufigkeit pro Monat oder
 Jahr (SUM(distance_m), COUNT(*), AVG(avg_pace_sec_per_km)) als eigenständigen Trend, getrennt von CTL/TSB.
+
+Gemessen vs. geschätzt: Bei Outdoor-Fahrten ohne Leistungsmesser liefert Strava geschätzte Watt, und daraus
+entsteht in fitness_form ein TSS. Das zeigt grob den Umfang, ist aber keine verlässliche Leistung. Der Nutzer
+hatte nur zeitweise (etwa 2019 bis 2022) einen Leistungsmesser. fitness_form_measured ist belastbarer, lässt
+aber Zeiträume ohne Leistungsmesser (vor 2019) praktisch leer. Zeige bei Fragen zur Form über die Jahre
+deshalb BEIDE Kurven bzw. Höchststände (fitness_form und fitness_form_measured), nenne den Unterschied und
+sage klar, welche Aussage auf gemessenen und welche auf geschätzten Daten beruht.
 
 Fragen nach der Entwicklung über Jahre, der besten/höchsten Form ("Wann hatte ich Top-Form?", "Wie komme
 ich wieder dahin?"): Frage fitness_form über die GESAMTE verfügbare Historie ab (kein Datumsfilter oder

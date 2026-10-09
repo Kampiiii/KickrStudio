@@ -138,6 +138,46 @@ SELECT session_id, day, started_at, ftp_at_time, weight_kg, best_60s_power,
 FROM sessions_weighted
 ORDER BY day;`)
 
+  // Leistungsqualität: Strava liefert für Fahrten ohne Leistungsmesser GESCHÄTZTE Watt in der Zusammenfassung,
+  // aber keine Watt-Sekundenwerte. Hat eine Strava-Einheit also kaum Watt in den Samples, ist die Leistung
+  // geschätzt. Eigene Kickr-Einheiten sind immer gemessen. (Sauberer wäre das Strava-Feld device_watts.)
+  parts.push(`
+CREATE OR REPLACE VIEW ${q(c, 'power_quality')} AS
+SELECT s.session_id, s.started_at, IFNULL(s.sport, 'bike') AS sport, s.source, s.avg_power, s.tss,
+  SAFE_DIVIDE(COUNTIF(m.power > 0), COUNT(m.t_sec)) AS power_share,
+  CASE
+    WHEN s.source IS NULL OR s.source != 'strava' THEN 'gemessen'
+    WHEN SAFE_DIVIDE(COUNTIF(m.power > 0), COUNT(m.t_sec)) > 0.5 THEN 'gemessen'
+    WHEN s.avg_power > 0 THEN 'geschätzt'
+    ELSE 'keine'
+  END AS power_type
+FROM ${q(c, 'sessions')} s
+LEFT JOIN ${q(c, 'samples')} m USING (session_id)
+GROUP BY s.session_id, s.started_at, s.sport, s.source, s.avg_power, s.tss;`)
+
+  // Form (CTL/ATL/TSB) nur aus gemessener Leistung -- ohne die von Strava geschätzten Watt
+  parts.push(`
+CREATE OR REPLACE VIEW ${q(c, 'fitness_form_measured')} AS
+WITH daily AS (
+  SELECT DATE(started_at, 'Europe/Berlin') AS d, SUM(IF(power_type = 'gemessen', tss, 0)) AS tss
+  FROM ${q(c, 'power_quality')}
+  GROUP BY d
+),
+calendar AS (
+  SELECT cal_d AS d, COALESCE(daily.tss, 0) AS tss
+  FROM UNNEST(GENERATE_DATE_ARRAY((SELECT MIN(d) FROM daily), CURRENT_DATE('Europe/Berlin'))) AS cal_d
+  LEFT JOIN daily ON daily.d = cal_d
+),
+weighted AS (
+  SELECT a.d AS day, a.tss AS tss,
+    SUM(b.tss * EXP(-DATE_DIFF(a.d, b.d, DAY) / 42.0)) * (1 - EXP(-1 / 42.0)) AS ctl,
+    SUM(b.tss * EXP(-DATE_DIFF(a.d, b.d, DAY) / 7.0)) * (1 - EXP(-1 / 7.0)) AS atl
+  FROM calendar a JOIN calendar b ON b.d <= a.d
+  GROUP BY a.d, a.tss
+)
+SELECT day, tss, ROUND(ctl, 1) AS ctl, ROUND(atl, 1) AS atl, ROUND(ctl - atl, 1) AS tsb
+FROM weighted;`)
+
   // GPS-Punkte mit echtem Geo-Typ (für ST_DISTANCE, ST_DWITHIN, Routenvergleiche usw. in BigQuery)
   parts.push(`
 CREATE OR REPLACE VIEW ${q(c, 'gps_points')} AS
