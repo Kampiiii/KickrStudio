@@ -222,6 +222,8 @@ function SessionDetail({ session, onClose }: { session: Session; onClose: () => 
       {isRun || (imported && !hasPower)
         ? <ImportedSummaryView session={session} />
         : <SummaryView session={session} zones={app.settings!.powerZones} />}
+      {/* Karte für jede Einheit mit GPS -- unabhängig davon, welche Kennzahlen-Ansicht oben greift */}
+      {hasGps(session.samples) && <div className="card" style={{ marginTop: 14 }}><RouteMap samples={session.samples} /></div>}
       <div className="row wrap" style={{ marginTop: 16 }}>
         {!imported && <button className="btn primary" disabled={uploading || !stravaReady || activityId != null} onClick={async () => {
           setUploading(true)
@@ -261,7 +263,6 @@ function ImportedSummaryView({ session }: { session: Session }) {
       {session.samples.length > 1
         ? <div className="card"><SessionChart samples={session.samples} showPower={false} /></div>
         : <div className="card hint">Von Strava importiert — noch keine Sekundenwerte geladen (Einstellungen → Strava → "Kurven & GPS nachladen").</div>}
-      {hasGps(session.samples) && <div className="card"><RouteMap samples={session.samples} /></div>}
     </div>
   )
 }
