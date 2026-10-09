@@ -34,8 +34,10 @@ CREATE OR REPLACE EXTERNAL TABLE ${q(c, 'raw_json_sessions')} (
                  avgHr FLOAT64, maxHr FLOAT64, avgCadence FLOAT64, best60s FLOAT64>,
   stravaActivityId INT64, sport STRING, source STRING,
   distanceM FLOAT64, elevationGainM FLOAT64, avgPaceSecPerKm FLOAT64,
+  replayOf STRUCT<sessionId STRING, name STRING>, tourDifficulty FLOAT64, rideMode STRING,
   samples ARRAY<STRUCT<t INT64, power FLOAT64, hr FLOAT64, cadence FLOAT64, target FLOAT64,
-                        paceSecPerKm FLOAT64, distanceM FLOAT64, altitudeM FLOAT64, lat FLOAT64, lng FLOAT64>>
+                        paceSecPerKm FLOAT64, distanceM FLOAT64, altitudeM FLOAT64, lat FLOAT64, lng FLOAT64,
+                        gradePct FLOAT64, speedKmh FLOAT64>>
 ) OPTIONS (format = 'NEWLINE_DELIMITED_JSON', uris = ['${uri(c, 'sessions')}'], ignore_unknown_values = true);
 
 MERGE ${q(c, 'sessions')} t
@@ -47,7 +49,8 @@ USING (
          summary.avgHr AS avg_hr, summary.maxHr AS max_hr, summary.avgCadence AS avg_cadence,
          summary.best60s AS best_60s_power, stravaActivityId AS strava_activity_id,
          IFNULL(sport, 'bike') AS sport, source,
-         distanceM AS distance_m, elevationGainM AS elevation_gain_m, avgPaceSecPerKm AS avg_pace_sec_per_km
+         distanceM AS distance_m, elevationGainM AS elevation_gain_m, avgPaceSecPerKm AS avg_pace_sec_per_km,
+         replayOf.sessionId AS replay_of_session_id, tourDifficulty AS tour_difficulty, rideMode AS ride_mode
   FROM ${q(c, 'raw_json_sessions')}
 ) s
 ON t.session_id = s.session_id
@@ -60,7 +63,7 @@ USING (
          TIMESTAMP_ADD(TIMESTAMP(r.startedAt), INTERVAL smp.t SECOND) AS ts,
          smp.power AS power, smp.hr AS hr, smp.cadence AS cadence, smp.target AS target_power,
          smp.paceSecPerKm AS pace_sec_per_km, smp.distanceM AS distance_m, smp.altitudeM AS altitude_m,
-         smp.lat AS lat, smp.lng AS lng
+         smp.lat AS lat, smp.lng AS lng, smp.gradePct AS grade_pct, smp.speedKmh AS speed_kmh
   FROM ${q(c, 'raw_json_sessions')} r, UNNEST(r.samples) smp
 ) s
 ON t.session_id = s.session_id AND t.t_sec = s.t_sec AND DATE(t.ts) = DATE(s.ts)
@@ -184,7 +187,9 @@ CREATE OR REPLACE VIEW ${q(c, 'gps_points')} AS
 SELECT s.session_id, s.t_sec, s.ts, s.lat, s.lng, ST_GEOGPOINT(s.lng, s.lat) AS geo,
        s.hr, s.altitude_m, s.distance_m, s.pace_sec_per_km
 FROM ${q(c, 'samples')} s
-WHERE s.lat IS NOT NULL AND s.lng IS NOT NULL;`)
+WHERE s.lat IS NOT NULL AND s.lng IS NOT NULL
+  -- Indoor-Replays (Tour auf dem Trainer) tragen die Koordinaten der Originalstrecke, sind aber nicht draußen gefahren
+  AND s.session_id NOT IN (SELECT session_id FROM ${q(c, 'sessions')} WHERE replay_of_session_id IS NOT NULL);`)
 
   return parts.join('\n')
 }

@@ -1,7 +1,11 @@
 import type { PowerZone } from './model'
 import { zoneIndex } from './model'
 
-export interface Sample { t: number; power: number; hr: number | null; cadence: number | null; target: number }
+export interface Sample {
+  t: number; power: number; hr: number | null; cadence: number | null; target: number
+  // nur bei Touren-Fahrten (virtuelle Strecke) befüllt
+  lat?: number; lng?: number; altitudeM?: number | null; distanceM?: number | null; gradePct?: number; speedKmh?: number
+}
 
 export interface Summary {
   avgPower: number; maxPower: number

@@ -10,6 +10,7 @@ const CPS_MEASUREMENT = 0x2a63
 
 const OP_REQUEST_CONTROL = 0x00
 const OP_SET_TARGET_POWER = 0x05
+const OP_SET_SIM_PARAMS = 0x11 // Set Indoor Bike Simulation Parameters (Steigung, Wind, Roll-/Luftwiderstand)
 
 export class FtmsTrainer implements TrainerClient {
   name = ''
@@ -20,6 +21,8 @@ export class FtmsTrainer implements TrainerClient {
   private stateCb: (s: ConnState) => void = () => {}
   private state: ConnState = 'disconnected'
   private lastTarget: number | null = null
+  // Zuletzt gesetzte Simulationsparameter; nach Reconnect wiederherstellen (hat Vorrang vor lastTarget, wenn gesetzt)
+  private lastSim: { grade: number; crr: number; cw: number } | null = null
   private writeQueue: Promise<void> = Promise.resolve()
   private intentionalDisconnect = false
   // Kadenz aus CPS-Kurbelumdrehungen ableiten (Fallback-Modus)
@@ -77,9 +80,10 @@ export class FtmsTrainer implements TrainerClient {
         this.dataCb(this.parseCps((ev.target as BluetoothRemoteGATTCharacteristic).value!))
       })
     }
-    // Nach (Re-)Connect zuletzt gesetzten ERG-Sollwert wiederherstellen
-    if (this.lastTarget != null && this.controlPoint) {
-      await this.sendTargetPower(this.lastTarget).catch(() => {})
+    // Nach (Re-)Connect zuletzt gesetzten Modus wiederherstellen (Simulation oder ERG-Sollwert)
+    if (this.controlPoint) {
+      if (this.lastSim) await this.sendSimulation(this.lastSim).catch(() => {})
+      else if (this.lastTarget != null) await this.sendTargetPower(this.lastTarget).catch(() => {})
     }
   }
 
@@ -112,8 +116,28 @@ export class FtmsTrainer implements TrainerClient {
 
   async setTargetPower(watts: number): Promise<void> {
     this.lastTarget = Math.max(0, Math.round(watts))
+    this.lastSim = null // ERG-Sollwert löst den Simulationsmodus ab
     if (!this.controlPoint || this.state !== 'connected') return
     await this.sendTargetPower(this.lastTarget)
+  }
+
+  // Steigung in % (negativ = Gefälle), crr = Rollwiderstand, cw = Windwiderstandskoeffizient in kg/m
+  async setSimulation(gradePct: number, crr: number, cw: number): Promise<void> {
+    this.lastSim = { grade: gradePct, crr, cw }
+    if (!this.controlPoint || this.state !== 'connected') return
+    await this.sendSimulation(this.lastSim)
+  }
+
+  private sendSimulation(p: { grade: number; crr: number; cw: number }): Promise<void> {
+    // Aufbau laut FTMS: Wind (sint16, 0,001 m/s), Steigung (sint16, 0,01 %), Crr (uint8, 0,0001), Cw (uint8, 0,01 kg/m)
+    const buf = new Uint8Array(7)
+    const dv = new DataView(buf.buffer)
+    buf[0] = OP_SET_SIM_PARAMS
+    dv.setInt16(1, 0, true)
+    dv.setInt16(3, Math.round(Math.max(-40, Math.min(40, p.grade)) * 100), true)
+    buf[5] = Math.max(0, Math.min(255, Math.round(p.crr * 10000)))
+    buf[6] = Math.max(0, Math.min(255, Math.round(p.cw * 100)))
+    return this.writeCp(buf)
   }
 
   private sendTargetPower(watts: number): Promise<void> {

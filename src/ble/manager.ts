@@ -103,6 +103,10 @@ export async function setTargetPower(watts: number): Promise<void> {
   if (trainer) await trainer.setTargetPower(watts)
 }
 
+export async function setSimulation(gradePct: number, crr: number, cw: number): Promise<void> {
+  if (trainer) await trainer.setSimulation(gradePct, crr, cw)
+}
+
 // Watchdog: >5 s keine Trainer-Daten trotz Verbindung → Warnung im UI
 setInterval(() => {
   const st = getState()

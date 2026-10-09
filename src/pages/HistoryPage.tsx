@@ -163,7 +163,7 @@ function BikeRow({ meta, onOpen }: { meta: SessionMeta; onOpen: () => void }) {
   return (
     <tr className="clickable" onClick={onOpen}>
       <td>{fmtDate(meta.startedAt)}</td>
-      <td>{outdoor ? '🌍 ' : ''}{meta.name}</td>
+      <td>{meta.replayOf ? '🗺️ ' : outdoor ? '🌍 ' : ''}{meta.name}</td>
       <td>{fmtDuration(meta.durationSec)}</td>
       {hasPower ? (
         <>
@@ -217,7 +217,7 @@ function SessionDetail({ session, onClose }: { session: Session; onClose: () => 
     <div>
       <div className="page-title">
         <button className="btn small" onClick={onClose}>← Zurück</button>
-        {isRun ? '🏃 ' : imported ? '🌍 ' : ''}{session.name} <span className="sub">{fmtDate(session.startedAt)}</span>
+        {isRun ? '🏃 ' : session.replayOf ? '🗺️ ' : imported ? '🌍 ' : ''}{session.name} <span className="sub">{fmtDate(session.startedAt)}</span>
       </div>
       {isRun || (imported && !hasPower)
         ? <ImportedSummaryView session={session} />

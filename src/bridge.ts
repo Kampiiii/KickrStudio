@@ -42,6 +42,10 @@ export interface SessionMeta {
   distanceM?: number
   elevationGainM?: number | null
   avgPaceSecPerKm?: number | null
+  // Touren-Replay: Einheit wurde auf der Strecke einer früheren Outdoor-Fahrt gefahren
+  replayOf?: { sessionId: string; name: string }
+  tourDifficulty?: number // 0..1, Anteil der echten Steigung
+  rideMode?: 'sim' | 'erg'
   hasStreams?: boolean // Sekundenwerte wurden (versucht) nachzuladen -- verhindert endlose Wiederholversuche
   hasGps?: boolean // GPS-Nachladung wurde (versucht) -- auch true, wenn die Einheit gar kein GPS hat (Indoor)
 }
@@ -52,6 +56,8 @@ export interface Session extends SessionMeta {
     // nur bei importierten Lauf-/Outdoor-Einheiten befüllt (Strava-Streams):
     paceSecPerKm?: number | null; distanceM?: number | null; altitudeM?: number | null
     lat?: number; lng?: number
+    // nur bei Touren-Fahrten (virtuelle Strecke):
+    gradePct?: number; speedKmh?: number
   }[]
 }
 

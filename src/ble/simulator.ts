@@ -39,6 +39,11 @@ export class SimulatorTrainer implements TrainerClient {
   async setTargetPower(watts: number): Promise<void> {
     this.target = Math.max(0, Math.round(watts))
   }
+
+  // Simulationsmodus: Der virtuelle Fahrer tritt bei Steigung etwas fester (ca. 7 W je %), im Gefälle weniger
+  async setSimulation(gradePct: number): Promise<void> {
+    this.target = Math.max(70, Math.min(420, Math.round(150 + gradePct * 7)))
+  }
 }
 
 export class SimulatorHr implements HrClient {

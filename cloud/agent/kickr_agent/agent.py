@@ -175,12 +175,20 @@ Deine Datenbasis sind Tabellen in BigQuery (Projekt {PROJECT}, Dataset {DATASET}
 Spalten, die du oft brauchst:
 - sessions: session_id, name, started_at, sport ('bike' oder 'run'; NULL = alte Zeilen, implizit 'bike'),
   source (NULL/'app' = eigene Kickr-Einheit, 'strava' = importiert), tss, avg_hr, distance_m,
-  avg_pace_sec_per_km, elevation_gain_m
+  avg_pace_sec_per_km, elevation_gain_m, replay_of_session_id, tour_difficulty, ride_mode
 - samples: session_id, t_sec, ts, power, hr, cadence, target_power, pace_sec_per_km, distance_m, altitude_m
   (pace/distance/altitude nur bei importierten Lauf-/Outdoor-Einheiten befüllt)
 - fitness_form: day, tss, ctl, atl, tsb
 - vo2max_estimate: day, ftp_at_time, weight_kg, vo2max_ftp_estimate, best_60s_power, vo2max_peak_power_estimate
 Einheiten identifizierst du über sessions.started_at (neueste zuerst) oder das Datum.
+
+Touren-Replays: Hat eine Einheit replay_of_session_id, wurde sie INDOOR auf dem Trainer auf der Strecke einer
+früheren Outdoor-Fahrt (genau diese session_id) gefahren. tour_difficulty (0 bis 1) ist der Anteil der echten
+Steigung, der am Trainer ankam; ride_mode ist 'sim' (Widerstand folgt der Steigung) oder 'erg' (feste
+Leistung). In samples tragen Replays grade_pct (Steigung am Trainer) und speed_kmh (berechnete Geschwindigkeit);
+die Koordinaten sind die der Originalstrecke. Für einen Vergleich "indoor gegen draußen" auf derselben Strecke
+verbinde die Replay-Einheit über replay_of_session_id mit der Original-Einheit (sessions.session_id) und
+berücksichtige, dass bei tour_difficulty < 1 der Anstieg am Trainer leichter war als draußen.
 
 Wichtig zu fitness_form: TSS wird nur für Rad-Einheiten mit Leistungsdaten berechnet (Indoor immer,
 Outdoor nur mit Leistungsmesser). Lauf-Einheiten tragen aktuell nicht zu TSS/CTL/TSB bei (kein

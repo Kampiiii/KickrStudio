@@ -292,7 +292,11 @@ ipcMain.handle('strava:upload', async (_e, sessionId) => {
     const settings = store.getSettings()
     const tcx = sessionToTcx(session, settings.weightKg)
     const sum = session.summary || {}
-    const desc = `KickrStudio · NP ${Math.round(sum.np || 0)} W · IF ${(sum.if || 0).toFixed(2)} · TSS ${Math.round(sum.tss || 0)} · FTP ${session.ftpAtTime || settings.ftp} W`
+    let desc = `KickrStudio · NP ${Math.round(sum.np || 0)} W · IF ${(sum.if || 0).toFixed(2)} · TSS ${Math.round(sum.tss || 0)} · FTP ${session.ftpAtTime || settings.ftp} W`
+    if (session.replayOf) {
+      const mode = session.rideMode === 'erg' ? 'feste Leistung' : `Simulation, ${Math.round((session.tourDifficulty ?? 1) * 100)} % Steigung`
+      desc += ` · Virtuelle Tour auf der Strecke „${session.replayOf.name}" (${mode})`
+    }
     const res = await strava.uploadTcx(tcx, session.name || 'KickrStudio Workout', desc)
     store.updateSession(sessionId, { stravaActivityId: res.activityId, uploadedAt: new Date().toISOString() })
     return { ok: true, ...res }

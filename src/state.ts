@@ -4,8 +4,9 @@ import type { Workout, Step } from './engine/model'
 import type { Sample } from './engine/metrics'
 import type { Settings, Session, SessionMeta, QueuedWorkout, PlanEntry, DraftSession } from './bridge'
 import type { ConnState } from './ble/types'
+import type { TourRide } from './engine/tour'
 
-export type Page = 'train' | 'plan' | 'workouts' | 'history' | 'body' | 'coach' | 'settings' | 'debug'
+export type Page = 'train' | 'plan' | 'workouts' | 'tours' | 'history' | 'body' | 'coach' | 'settings' | 'debug'
 
 export interface Telemetry {
   power: number | null
@@ -26,6 +27,7 @@ export interface PlayerState {
   samples: Sample[]
   startedAt: string | null
   pausedByDisconnect: boolean
+  tour: TourRide | null // gesetzt, wenn eine Tour (statt eines Workouts) gefahren wird
 }
 
 export interface AppState {
@@ -71,7 +73,7 @@ const initialState: AppState = {
   chooserFor: null,
   player: {
     status: 'idle', workout: null, steps: [], elapsed: 0, trimPct: 0,
-    freerideTarget: 120, currentTarget: 0, samples: [], startedAt: null, pausedByDisconnect: false,
+    freerideTarget: 120, currentTarget: 0, samples: [], startedAt: null, pausedByDisconnect: false, tour: null,
   },
   selectedWorkout: null,
   lastFinished: null,

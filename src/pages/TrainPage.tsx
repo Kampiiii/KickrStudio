@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
 import { bridge } from '../bridge'
 import { connectTrainer, connectHr, disconnectTrainer, disconnectHr } from '../ble/manager'
-import { startWorkout, pauseWorkout, resumeWorkout, skipSegment, trim, finishWorkout, dismissSummary, setFreerideTarget } from '../engine/player'
+import { startWorkout, pauseWorkout, resumeWorkout, skipSegment, trim, dismissSummary, setFreerideTarget } from '../engine/player'
+import EndButton from '../components/EndButton'
+import RouteMap, { hasGps } from '../components/RouteMap'
+import TourRideView from './TourRideView'
 import { expandSegments, fmtDuration, targetPctAt, zoneColor, workoutDuration } from '../engine/model'
 import { computeSummary } from '../engine/metrics'
 import { runCloudSync } from '../engine/cloudSync'
@@ -27,7 +30,7 @@ export default function TrainPage() {
   if (!settings) return null
 
   if (player.status === 'finished' && app.lastFinished) return <FinishedView />
-  if (player.status === 'riding' || player.status === 'paused') return <RidingView />
+  if (player.status === 'riding' || player.status === 'paused') return player.tour ? <TourRideView /> : <RidingView />
   return <IdleView />
 }
 
@@ -137,7 +140,7 @@ function RecoveredDraftBanner({ draft }: { draft: import('../bridge').DraftSessi
   )
 }
 
-function ConnectButtons() {
+export function ConnectButtons() {
   const app = useApp()
   const [busy, setBusy] = useState(false)
   const t = app.trainerState, h = app.hrState
@@ -262,18 +265,6 @@ function RidingView() {
   )
 }
 
-function EndButton() {
-  const [arm, setArm] = useState(false)
-  useEffect(() => {
-    if (!arm) return
-    const t = setTimeout(() => setArm(false), 4000)
-    return () => clearTimeout(t)
-  }, [arm])
-  return arm
-    ? <button className="btn danger big" onClick={finishWorkout}>Wirklich beenden &amp; speichern?</button>
-    : <button className="btn danger big" onClick={() => setArm(true)}>■ Beenden</button>
-}
-
 // ---------- Nach dem Training ----------
 function FinishedView() {
   const app = useApp()
@@ -320,6 +311,7 @@ function FinishedView() {
       )}
 
       <SummaryView session={session} zones={app.settings!.powerZones} />
+      {hasGps(session.samples) && <div className="card" style={{ marginTop: 14 }}><RouteMap samples={session.samples} /></div>}
 
       <div className="row wrap" style={{ marginTop: 16 }}>
         <button className="btn primary big" disabled={uploading || !stravaReady || uploaded != null} onClick={upload}>

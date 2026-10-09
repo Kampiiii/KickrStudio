@@ -12,6 +12,8 @@ export interface TrainerClient {
   connect(): Promise<void>
   disconnect(): void
   setTargetPower(watts: number): Promise<void>
+  // Simulationsmodus (Steigung): nur Trainer mit FTMS-Steuerung; andere ignorieren den Aufruf
+  setSimulation(gradePct: number, crr: number, cw: number): Promise<void>
   onData(cb: (d: TrainerData) => void): void
   onStateChange(cb: (s: ConnState) => void): void
 }

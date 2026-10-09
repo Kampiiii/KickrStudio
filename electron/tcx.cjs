@@ -27,13 +27,19 @@ function sessionToTcx(session, weightKg = 78) {
   const points = []
   for (const s of session.samples || []) {
     const t = new Date(start.getTime() + s.t * 1000).toISOString()
-    const v = estimateSpeedMs(s.power, totalMass)
-    dist += v
+    // Touren-Fahrt: echte Strecke, Höhe und Geschwindigkeit aus der Simulation; sonst aus der Leistung geschätzt
+    const hasPos = s.lat != null && s.lng != null
+    const v = s.speedKmh != null ? s.speedKmh / 3.6 : estimateSpeedMs(s.power, totalMass)
+    if (s.distanceM != null) dist = s.distanceM
+    else dist += v
+    // Reihenfolge der Elemente laut TCX-Schema: Time, Position, AltitudeMeters, DistanceMeters, HeartRateBpm, Cadence, Extensions
     points.push(
       `<Trackpoint><Time>${t}</Time>` +
+      (hasPos ? `<Position><LatitudeDegrees>${s.lat}</LatitudeDegrees><LongitudeDegrees>${s.lng}</LongitudeDegrees></Position>` : '') +
+      (hasPos && s.altitudeM != null ? `<AltitudeMeters>${s.altitudeM}</AltitudeMeters>` : '') +
+      `<DistanceMeters>${dist.toFixed(1)}</DistanceMeters>` +
       (s.hr ? `<HeartRateBpm><Value>${Math.round(s.hr)}</Value></HeartRateBpm>` : '') +
       (s.cadence != null ? `<Cadence>${Math.round(s.cadence)}</Cadence>` : '') +
-      `<DistanceMeters>${dist.toFixed(1)}</DistanceMeters>` +
       `<Extensions><ns3:TPX><ns3:Speed>${v.toFixed(2)}</ns3:Speed><ns3:Watts>${Math.round(s.power || 0)}</ns3:Watts></ns3:TPX></Extensions>` +
       `</Trackpoint>`
     )
