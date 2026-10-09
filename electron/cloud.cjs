@@ -35,7 +35,7 @@ CREATE OR REPLACE EXTERNAL TABLE ${q(c, 'raw_json_sessions')} (
   stravaActivityId INT64, sport STRING, source STRING,
   distanceM FLOAT64, elevationGainM FLOAT64, avgPaceSecPerKm FLOAT64,
   samples ARRAY<STRUCT<t INT64, power FLOAT64, hr FLOAT64, cadence FLOAT64, target FLOAT64,
-                        paceSecPerKm FLOAT64, distanceM FLOAT64, altitudeM FLOAT64>>
+                        paceSecPerKm FLOAT64, distanceM FLOAT64, altitudeM FLOAT64, lat FLOAT64, lng FLOAT64>>
 ) OPTIONS (format = 'NEWLINE_DELIMITED_JSON', uris = ['${uri(c, 'sessions')}'], ignore_unknown_values = true);
 
 MERGE ${q(c, 'sessions')} t
@@ -59,10 +59,13 @@ USING (
   SELECT r.id AS session_id, smp.t AS t_sec,
          TIMESTAMP_ADD(TIMESTAMP(r.startedAt), INTERVAL smp.t SECOND) AS ts,
          smp.power AS power, smp.hr AS hr, smp.cadence AS cadence, smp.target AS target_power,
-         smp.paceSecPerKm AS pace_sec_per_km, smp.distanceM AS distance_m, smp.altitudeM AS altitude_m
+         smp.paceSecPerKm AS pace_sec_per_km, smp.distanceM AS distance_m, smp.altitudeM AS altitude_m,
+         smp.lat AS lat, smp.lng AS lng
   FROM ${q(c, 'raw_json_sessions')} r, UNNEST(r.samples) smp
 ) s
 ON t.session_id = s.session_id AND t.t_sec = s.t_sec AND DATE(t.ts) = DATE(s.ts)
+-- GPS wurde nachträglich geladen: bei schon vorhandenen Sekundenwerten nur lat/lng ergänzen
+WHEN MATCHED AND t.lat IS NULL AND s.lat IS NOT NULL THEN UPDATE SET t.lat = s.lat, t.lng = s.lng
 WHEN NOT MATCHED THEN INSERT ROW;`)
   }
 
@@ -70,16 +73,20 @@ WHEN NOT MATCHED THEN INSERT ROW;`)
     parts.push(`
 CREATE OR REPLACE EXTERNAL TABLE ${q(c, 'raw_json_body')} (
   date STRING, weightKg FLOAT64, fatPct FLOAT64, fatKg FLOAT64, fatFreeKg FLOAT64,
-  muscleKg FLOAT64, waterKg FLOAT64, boneKg FLOAT64
+  muscleKg FLOAT64, waterKg FLOAT64, boneKg FLOAT64, visceralFatIdx FLOAT64
 ) OPTIONS (format = 'NEWLINE_DELIMITED_JSON', uris = ['${uri(c, 'body')}'], ignore_unknown_values = true);
 
 MERGE ${q(c, 'body')} t
 USING (
   SELECT TIMESTAMP(date) AS measured_at, weightKg AS weight_kg, fatPct AS fat_pct, fatKg AS fat_kg,
-         fatFreeKg AS fat_free_kg, muscleKg AS muscle_kg, waterKg AS water_kg, boneKg AS bone_kg
+         fatFreeKg AS fat_free_kg, muscleKg AS muscle_kg, waterKg AS water_kg, boneKg AS bone_kg,
+         visceralFatIdx AS visceral_fat_index
   FROM ${q(c, 'raw_json_body')}
 ) s
 ON t.measured_at = s.measured_at
+-- nachträglich hinzugekommene Messwerte (Viszeralfett) auch bei schon vorhandenen Zeilen ergänzen
+WHEN MATCHED AND t.visceral_fat_index IS NULL AND s.visceral_fat_index IS NOT NULL THEN
+  UPDATE SET t.visceral_fat_index = s.visceral_fat_index
 WHEN NOT MATCHED THEN INSERT ROW;`)
   }
 
@@ -130,6 +137,14 @@ SELECT session_id, day, started_at, ftp_at_time, weight_kg, best_60s_power,
     ELSE NULL END AS vo2max_peak_power_estimate
 FROM sessions_weighted
 ORDER BY day;`)
+
+  // GPS-Punkte mit echtem Geo-Typ (für ST_DISTANCE, ST_DWITHIN, Routenvergleiche usw. in BigQuery)
+  parts.push(`
+CREATE OR REPLACE VIEW ${q(c, 'gps_points')} AS
+SELECT s.session_id, s.t_sec, s.ts, s.lat, s.lng, ST_GEOGPOINT(s.lng, s.lat) AS geo,
+       s.hr, s.altitude_m, s.distance_m, s.pace_sec_per_km
+FROM ${q(c, 'samples')} s
+WHERE s.lat IS NOT NULL AND s.lng IS NOT NULL;`)
 
   return parts.join('\n')
 }

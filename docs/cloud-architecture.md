@@ -161,6 +161,17 @@ bei jeder Synchronisierung per `CREATE OR REPLACE VIEW` mit erzeugt/aktualisiert
 (in `electron/cloud.cjs` → `buildSql()` und in `cloud/sql/sync.sql`) — kein manueller Schritt
 in der Console nötig, und bei einem Neuaufbau des Datasets entsteht sie automatisch wieder mit.
 
+**Erweiterungen (Oktober 2026):**
+
+- `sessions` und `samples` tragen `sport` (bike/run), `source` (app/strava), Distanz, Pace, Höhe und GPS (`lat`, `lng`).
+- `gps_points` ist eine View mit echtem `GEOGRAPHY`-Typ (`ST_GEOGPOINT`) über die Samples mit GPS --
+  für BigQuery-Geofunktionen (ST_DISTANCE, ST_DWITHIN, Routenvergleiche).
+- `body.visceral_fat_index`: Withings Visceral Fat Index (Messtyp 170, dimensionsloser Index; nur Waagen, die ihn liefern).
+- Die MERGEs für `samples` und `body` haben einen `WHEN MATCHED`-Zweig, der nachträglich geladene Werte
+  (GPS, Viszeralfett) bei schon vorhandenen Zeilen ergänzt; INSERT allein hätte sie nie nachgezogen.
+- GPS-Daten verraten den Wohnort. Der Bucket und der Agent sind privat, der Agent gibt Startkoordinaten
+  nicht ungefragt preis.
+
 **Bewusst nicht exportiert:** `settings.json`. Sie enthält Strava- und Withings-Zugangsdaten.
 
 ## 4. Ablauf heute (manuell)

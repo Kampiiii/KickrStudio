@@ -172,13 +172,14 @@ async function importActivities() {
   return { ok: true, imported, skipped }
 }
 
-const STREAM_KEYS = 'time,heartrate,watts,cadence,velocity_smooth,distance,altitude'
+const STREAM_KEYS = 'time,heartrate,watts,cadence,velocity_smooth,distance,altitude,latlng'
+const GPS_ONLY_KEYS = 'time,latlng' // für Einheiten, deren Kurven schon da sind und nur GPS fehlt
 
 // Sekundenwerte einer Aktivität holen. 404 heißt: keine Streams vorhanden (z.B. manueller Eintrag) --
 // kein Fehler, einfach keine Kurve. Bei 429 (Rate-Limit trotz Drosselung) einmal nach Retry-After warten.
-async function fetchStreams(token, activityId) {
+async function fetchStreams(token, activityId, keys = STREAM_KEYS) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await fetch(`${API_URL}/activities/${activityId}/streams?keys=${STREAM_KEYS}&key_by_type=true`, {
+    const r = await fetch(`${API_URL}/activities/${activityId}/streams?keys=${keys}&key_by_type=true`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (r.status === 404) return null
@@ -198,6 +199,7 @@ function streamsToSamples(streams) {
   if (time.length === 0) return []
   const hr = streams.heartrate?.data, watts = streams.watts?.data, cad = streams.cadence?.data
   const vel = streams.velocity_smooth?.data, dist = streams.distance?.data, alt = streams.altitude?.data
+  const ll = streams.latlng?.data
   return time.map((t, i) => ({
     t,
     power: watts?.[i] ?? 0,
@@ -207,21 +209,55 @@ function streamsToSamples(streams) {
     paceSecPerKm: vel?.[i] ? Math.round(1000 / vel[i]) : null,
     distanceM: dist?.[i] ?? null,
     altitudeM: alt?.[i] ?? null,
+    ...gpsFields(ll?.[i]),
   }))
 }
 
-// Lädt Sekundenwerte für alle importierten Strava-Einheiten nach, die noch keine haben.
+// [lat, lng] -> Felder; 5 Nachkommastellen (~1 m) reichen und halten die Dateien klein.
+function gpsFields(pair) {
+  return Array.isArray(pair) && pair.length === 2
+    ? { lat: Math.round(pair[0] * 1e5) / 1e5, lng: Math.round(pair[1] * 1e5) / 1e5 }
+    : {}
+}
+
+// Ergänzt vorhandene Sekundenwerte um GPS (Zuordnung über die Zeit t, nicht über die Position im Array).
+function mergeGps(samples, streams) {
+  const time = streams?.time?.data || [], ll = streams?.latlng?.data
+  if (!ll || !time.length) return { samples, gotGps: false }
+  const idx = new Map(time.map((t, i) => [t, i]))
+  let n = 0
+  const merged = (samples || []).map(s => {
+    const g = gpsFields(ll[idx.get(s.t)])
+    if (g.lat != null) n++
+    return { ...s, ...g }
+  })
+  return { samples: merged, gotGps: n > 0 }
+}
+
+// Lädt Sekundenwerte (inkl. GPS) für importierte Strava-Einheiten nach, bei denen etwas fehlt:
+//  - noch keine Kurven -> alles holen (eine Anfrage)
+//  - Kurven da, aber GPS noch nie versucht -> nur Zeit+GPS holen und einmergen
 // Feste Pause zwischen Aufrufen hält uns sicher unter Stravas Kurzzeit-Limit (~200/15 Min.).
-// Robust gegen Unterbrechung: hasStreams markiert erledigte Einheiten, ein Neustart macht weiter.
+// Robust gegen Unterbrechung: hasStreams/hasGps markieren erledigte Einheiten, ein Neustart macht weiter.
 async function backfillStreams({ delayMs = 5000, limit, onProgress } = {}) {
-  let pending = store.listSessions().filter(s => s.source === 'strava' && !s.hasStreams)
+  let pending = store.listSessions().filter(s => s.source === 'strava' && (!s.hasStreams || !s.hasGps))
   if (limit) pending = pending.slice(0, limit)
   let done = 0, failed = 0
   for (const meta of pending) {
     try {
       const token = await getFreshToken()
-      const streams = await fetchStreams(token, meta.stravaActivityId)
-      store.updateSession(meta.id, { samples: streams ? streamsToSamples(streams) : [], hasStreams: true })
+      if (!meta.hasStreams) {
+        const streams = await fetchStreams(token, meta.stravaActivityId)
+        const samples = streams ? streamsToSamples(streams) : []
+        const gotGps = samples.some(s => s.lat != null)
+        store.updateSession(meta.id, { samples, hasStreams: true, hasGps: true, ...(gotGps ? { cloudSyncedAt: null } : {}) })
+      } else {
+        const streams = await fetchStreams(token, meta.stravaActivityId, GPS_ONLY_KEYS)
+        const full = store.getSession(meta.id)
+        const { samples, gotGps } = mergeGps(full?.samples, streams)
+        // cloudSyncedAt zurücksetzen, damit der nächste Cloud-Sync die Einheit mit GPS erneut hochlädt
+        store.updateSession(meta.id, { samples, hasGps: true, ...(gotGps ? { cloudSyncedAt: null } : {}) })
+      }
       done++
     } catch (e) {
       failed++

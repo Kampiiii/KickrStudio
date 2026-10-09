@@ -43,6 +43,7 @@ export interface SessionMeta {
   elevationGainM?: number | null
   avgPaceSecPerKm?: number | null
   hasStreams?: boolean // Sekundenwerte wurden (versucht) nachzuladen -- verhindert endlose Wiederholversuche
+  hasGps?: boolean // GPS-Nachladung wurde (versucht) -- auch true, wenn die Einheit gar kein GPS hat (Indoor)
 }
 
 export interface Session extends SessionMeta {
@@ -50,6 +51,7 @@ export interface Session extends SessionMeta {
     t: number; power: number; hr: number | null; cadence: number | null; target: number
     // nur bei importierten Lauf-/Outdoor-Einheiten befüllt (Strava-Streams):
     paceSecPerKm?: number | null; distanceM?: number | null; altitudeM?: number | null
+    lat?: number; lng?: number
   }[]
 }
 
@@ -90,6 +92,7 @@ export interface BodyEntry {
   muscleKg?: number
   waterKg?: number
   boneKg?: number
+  visceralFatIdx?: number // Withings Visceral Fat Index (dimensionsloser Index, nur bestimmte Waagen)
 }
 
 export interface KickrBridge {

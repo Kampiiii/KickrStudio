@@ -160,11 +160,11 @@ export default function SettingsPage() {
               <>
                 <div className="full row">
                   <button className="btn small" disabled={backfilling} onClick={backfillStreams}>
-                    {backfilling ? 'Lade Kurven nach …' : '📈 Alle Kurven nachladen'}
+                    {backfilling ? 'Lade Kurven & GPS nach …' : '📈 Kurven & GPS nachladen'}
                   </button>
                 </div>
                 <div className="full hint">
-                  Lädt Sekundenwerte (Puls, Watt, Pace …) für importierte Strava-Einheiten nach, die noch keine haben.
+                  Lädt Sekundenwerte (Puls, Watt, Pace …) und die GPS-Strecke für importierte Strava-Einheiten nach, bei denen sie fehlen.
                   Bei vielen Einheiten dauert das wegen Stravas Rate-Limit spürbar (grob 1 pro 5 Sekunden) — läuft
                   im Hintergrund weiter, auch wenn du die Seite wechselst.
                   {backfillProgress && ` Fortschritt: ${backfillProgress.done + backfillProgress.failed} / ${backfillProgress.total} (zuletzt: ${backfillProgress.last}).`}

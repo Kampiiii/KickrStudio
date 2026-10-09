@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const store = require('./store.cjs')
@@ -334,6 +334,12 @@ function autoSyncWithings() {
 logDiag('vor app.whenReady()')
 app.whenReady().then(() => {
   logDiag('app.whenReady erreicht')
+  // OpenStreetMap-Kacheln (Karte im Verlauf): Die Nutzungsrichtlinie verlangt einen eigenen, stabilen
+  // User-Agent, der die App benennt (kein Browser-/Standardwert).
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://tile.openstreetmap.org/*'] }, (details, cb) => {
+    details.requestHeaders['User-Agent'] = `KickrStudio/${app.getVersion()} (https://github.com/Kampiiii/KickrStudio)`
+    cb({ requestHeaders: details.requestHeaders })
+  })
   createWindow()
   watchData()
   autoSyncWithings()

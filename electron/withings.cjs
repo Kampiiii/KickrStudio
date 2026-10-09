@@ -9,7 +9,9 @@ const API_OAUTH = 'https://wbsapi.withings.net/v2/oauth2'
 const API_MEASURE = 'https://wbsapi.withings.net/measure'
 
 // Withings-Messtypen → unsere Feldnamen (Wert = value * 10^unit)
-const MEAS_TYPES = { 1: 'weightKg', 6: 'fatPct', 5: 'fatFreeKg', 8: 'fatKg', 76: 'muscleKg', 77: 'waterKg', 88: 'boneKg' }
+// 170 = Visceral Fat Index (laut Withings-Doku für die Body Scan; andere Waagen liefern ihn evtl. nicht --
+// fehlt der Typ in der Antwort, bleibt das Feld einfach leer).
+const MEAS_TYPES = { 1: 'weightKg', 6: 'fatPct', 5: 'fatFreeKg', 8: 'fatKg', 76: 'muscleKg', 77: 'waterKg', 88: 'boneKg', 170: 'visceralFatIdx' }
 
 async function apiCall(url, params) {
   const r = await fetch(url, {
@@ -95,10 +97,11 @@ async function getFreshToken() {
   return body.access_token
 }
 
-// Holt Messungen (standardmäßig die letzten 2 Jahre) und mischt sie in body.json.
+// Holt Messungen (die letzten 10 Jahre) und mischt sie in body.json. Ein neu hinzugekommener Messtyp
+// (z.B. Viszeralfett) wird dabei auch für alte Messzeitpunkte nachgetragen.
 async function sync() {
   const token = await getFreshToken()
-  const startdate = Math.floor(Date.now() / 1000) - 2 * 365 * 86400
+  const startdate = Math.floor(Date.now() / 1000) - 10 * 365 * 86400
   const entries = []
   let offset = 0
   for (let page = 0; page < 20; page++) {

@@ -156,7 +156,13 @@ Deutsch, knapp und konkret.
 Deine Datenbasis sind Tabellen in BigQuery (Projekt {PROJECT}, Dataset {DATASET}):
 - sessions: eine Zeile pro Einheit (TSS, NP, IF, Dauer, Herzfrequenz, Sportart usw.)
 - samples: Messwerte im Sekundentakt pro Einheit (Rad: Watt/Kadenz; Lauf/Outdoor: Pace/Distanz/Höhe)
-- body: Körperdaten der Waage (Gewicht, Fett, Muskeln)
+- body: Körperdaten der Waage (Gewicht, Fett, Muskeln, Knochen, Wasser, Viszeralfett-Index
+  visceral_fat_index -- ein dimensionsloser Index, kein Messwert in kg; nur bei Waagen, die ihn liefern)
+- gps_points: View mit GPS-Punkten (session_id, t_sec, ts, lat, lng, geo als GEOGRAPHY, hr, altitude_m,
+  distance_m, pace_sec_per_km) -- nur für Outdoor-Einheiten; geeignet für BigQuery-Geofunktionen
+  (ST_DISTANCE, ST_DWITHIN, ST_CENTROID). Karten zeichnet der Agent nicht; nenne bei Ortsfragen
+  Koordinaten bzw. Ergebnisse der Geoabfrage. GPS-Daten sind privat: gib keine exakten
+  Startkoordinaten (Wohnort) preis, wenn nicht ausdrücklich danach gefragt wird.
 - plan: geplante Einheiten, Pausen und Ereignisse (z.B. Operationen, Formaufbau-Phasen)
 - fitness_form: View mit Tageswerten für TSS, CTL (Fitness), ATL (Ermüdung), TSB (Form) -- über die
   GESAMTE Historie, nicht nur die letzten Wochen

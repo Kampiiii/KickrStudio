@@ -59,6 +59,7 @@ export default function BodyPage() {
             sub={d30fat != null ? `${d30fat > 0 ? '+' : ''}${d30fat.toFixed(1)} %-Pkt. in 30 Tagen` : undefined} />
           <Tile label="Muskelmasse" value={latest.muscleKg?.toFixed(1) ?? '–'} unit="kg" />
           <Tile label="Wasser" value={latest.waterKg?.toFixed(1) ?? '–'} unit="kg" />
+          {latest.visceralFatIdx != null && <Tile label="Viszeralfett-Index" value={latest.visceralFatIdx.toFixed(0)} sub="Index, kein Messwert in kg" />}
           {wkg && <Tile label="Watt pro kg" value={wkg} unit="W/kg" sub={`bei FTP ${s.ftp} W`} />}
           {bmi && <Tile label="BMI" value={bmi} sub={`bei ${s.heightCm} cm`} />}
         </div>
@@ -71,6 +72,12 @@ export default function BodyPage() {
           <div className="card">
             <h3 style={{ fontSize: 14, marginBottom: 10 }}>Muskelmasse</h3>
             <BodyChart entries={entries} series="muscleKg" />
+          </div>
+        )}
+        {entries.some(e => e.visceralFatIdx != null) && (
+          <div className="card" style={{ marginTop: 14 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 10 }}>Viszeralfett-Index</h3>
+            <BodyChart entries={entries} series="visceralFatIdx" />
           </div>
         )}
       </>}
@@ -91,7 +98,7 @@ function Tile({ label, value, unit, sub }: { label: string; value: string; unit?
 function latestValues(entries: BodyEntry[]): BodyEntry {
   const out: BodyEntry = { date: '' }
   for (const e of entries) {
-    for (const k of ['weightKg', 'fatPct', 'muscleKg', 'waterKg', 'boneKg'] as const) {
+    for (const k of ['weightKg', 'fatPct', 'muscleKg', 'waterKg', 'boneKg', 'visceralFatIdx'] as const) {
       if (e[k] != null) out[k] = e[k]
     }
   }
@@ -106,12 +113,19 @@ function delta(entries: BodyEntry[], key: 'weightKg' | 'fatPct', days: number): 
   return recent[recent.length - 1][key]! - recent[0][key]!
 }
 
-function BodyChart({ entries, series = 'weight' }: { entries: BodyEntry[]; series?: 'weight' | 'muscleKg' }) {
+// Einzelreihen-Diagramme (Muskelmasse in kg, Viszeralfett als Index); 'weight' zeigt Gewicht + Fett%
+const SINGLE_SERIES = {
+  muscleKg: { label: 'Muskelmasse (kg)', axis: 'kg', color: '#3b9dd6' },
+  visceralFatIdx: { label: 'Viszeralfett-Index', axis: 'Index', color: '#e5484d' },
+} as const
+
+function BodyChart({ entries, series = 'weight' }: { entries: BodyEntry[]; series?: 'weight' | 'muscleKg' | 'visceralFatIdx' }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!ref.current) return
-    const pts = entries.filter(e => series === 'weight' ? e.weightKg != null || e.fatPct != null : e.muscleKg != null)
+    const single = series === 'weight' ? null : SINGLE_SERIES[series]
+    const pts = entries.filter(e => series === 'weight' ? e.weightKg != null || e.fatPct != null : e[series] != null)
     if (pts.length < 2) return
     const t = pts.map(e => new Date(e.date).getTime() / 1000)
     const axisStyle = { stroke: '#8b98a9', grid: { stroke: '#232e3d' }, ticks: { stroke: '#232e3d' } }
@@ -123,7 +137,7 @@ function BodyChart({ entries, series = 'weight' }: { entries: BodyEntry[]; serie
       scales: series === 'weight' ? { fat: { range: (_u, min, max) => [Math.floor(min - 1), Math.ceil(max + 1)] } } : {},
       axes: series === 'weight'
         ? [axisStyle, { ...axisStyle, label: 'kg' }, { ...axisStyle, scale: 'fat', side: 1, label: '%' }]
-        : [axisStyle, { ...axisStyle, label: 'kg' }],
+        : [axisStyle, { ...axisStyle, label: single!.axis }],
       series: series === 'weight'
         ? [
             {},
@@ -132,13 +146,13 @@ function BodyChart({ entries, series = 'weight' }: { entries: BodyEntry[]; serie
           ]
         : [
             {},
-            { label: 'Muskelmasse (kg)', stroke: '#3b9dd6', width: 2, spanGaps: true, points: { show: true, size: 4 } },
+            { label: single!.label, stroke: single!.color, width: 2, spanGaps: true, points: { show: true, size: 4 } },
           ],
       legend: { live: true },
     }
     const data: uPlot.AlignedData = series === 'weight'
       ? [t, pts.map(e => e.weightKg ?? null), pts.map(e => e.fatPct ?? null)]
-      : [t, pts.map(e => e.muscleKg ?? null)]
+      : [t, pts.map(e => e[series] ?? null)]
     const plot = new uPlot(opts, data, ref.current)
     const onResize = () => { if (ref.current) plot.setSize({ width: ref.current.clientWidth, height: 220 }) }
     window.addEventListener('resize', onResize)

@@ -4,6 +4,7 @@ import { bridge, type Session, type SessionMeta } from '../bridge'
 import { fmtDuration } from '../engine/model'
 import SummaryView from '../components/SummaryView'
 import SessionChart from '../components/SessionChart'
+import RouteMap, { hasGps } from '../components/RouteMap'
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -259,7 +260,8 @@ function ImportedSummaryView({ session }: { session: Session }) {
       </div>
       {session.samples.length > 1
         ? <div className="card"><SessionChart samples={session.samples} showPower={false} /></div>
-        : <div className="card hint">Von Strava importiert — noch keine Sekundenwerte geladen (Einstellungen → Strava → "Alle Kurven nachladen").</div>}
+        : <div className="card hint">Von Strava importiert — noch keine Sekundenwerte geladen (Einstellungen → Strava → "Kurven & GPS nachladen").</div>}
+      {hasGps(session.samples) && <div className="card"><RouteMap samples={session.samples} /></div>}
     </div>
   )
 }
