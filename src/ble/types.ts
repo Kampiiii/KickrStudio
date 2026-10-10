@@ -2,6 +2,8 @@ export interface TrainerData {
   power: number | null
   cadence: number | null
   speedKmh: number | null
+  // FTMS "Resistance Level", falls der Trainer es mitsendet (bei manchen Rädern ist das die Gangstufe)
+  resistanceLevel?: number | null
 }
 
 export type ConnState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'

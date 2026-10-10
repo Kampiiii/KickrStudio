@@ -13,6 +13,7 @@ export interface Telemetry {
   cadence: number | null
   speedKmh: number | null
   hr: number | null
+  resistanceLevel: number | null // vom Trainer gemeldete Widerstandsstufe (falls vorhanden)
   lastDataAt: number
 }
 
@@ -67,7 +68,7 @@ const initialState: AppState = {
   trainerControl: false,
   hrState: 'disconnected',
   hrName: '',
-  telemetry: { power: null, cadence: null, speedKmh: null, hr: null, lastDataAt: 0 },
+  telemetry: { power: null, cadence: null, speedKmh: null, hr: null, resistanceLevel: null, lastDataAt: 0 },
   dataStale: false,
   chooserDevices: null,
   chooserFor: null,

@@ -76,10 +76,22 @@ export default function TourRideView() {
           {hrPct != null && <div className="sub">{Math.round(hrPct)} % HFmax</div>}
         </div>
         <div className="tile">
+          <div className="label">Gefahren</div>
+          <div className="value" style={{ fontSize: 30 }}>{(tr.distM / 1000).toFixed(1)}<span className="unit">km</span></div>
+          <div className="sub">von {(tour.distanceM / 1000).toFixed(1)} km · {Math.round((tr.distM / tour.distanceM) * 100)} %</div>
+        </div>
+        <div className="tile">
           <div className="label">Noch</div>
           <div className="value" style={{ fontSize: 30 }}>{restKm.toFixed(1)}<span className="unit">km</span></div>
           <div className="sub">{eta != null ? `ca. ${fmtDuration(eta)} bei Ø-Tempo` : '—'}</div>
         </div>
+        {telemetry.resistanceLevel != null && (
+          <div className="tile">
+            <div className="label">Widerstandsstufe</div>
+            <div className="value" style={{ fontSize: 30 }}>{telemetry.resistanceLevel}</div>
+            <div className="sub">vom Trainer gemeldet</div>
+          </div>
+        )}
         <div className="tile">
           <div className="label">Höhenmeter</div>
           <div className="value" style={{ fontSize: 30 }}>{Math.round(tr.ascentDoneM)}<span className="unit">m</span></div>
@@ -93,7 +105,11 @@ export default function TourRideView() {
             <button className={`btn small${tr.mode === 'sim' ? ' primary' : ''}`} onClick={() => setTourMode('sim')}>🏔 Simulation</button>
             <button className={`btn small${tr.mode === 'erg' ? ' primary' : ''}`} onClick={() => setTourMode('erg')}>⚡ Feste Leistung (ERG)</button>
           </div>
-          <button className={`btn small${tr.follow ? ' primary' : ''}`} onClick={() => setTourFollow(!tr.follow)}>📍 {tr.follow ? 'Karte folgt' : 'Karte folgen'}</button>
+          <button className={`btn small${tr.follow ? ' primary' : ''}`}
+            title="Übersicht: die ganze Strecke ist zu sehen, der Punkt wandert darüber. Folgen: die Karte zoomt näher heran und bleibt immer auf dem Punkt."
+            onClick={() => setTourFollow(!tr.follow)}>
+            {tr.follow ? '📍 Karte folgt dem Punkt' : '🗺 Ganze Strecke'}
+          </button>
         </div>
         {tr.mode === 'sim' ? (
           <div className="row" style={{ marginTop: 12 }}>
@@ -112,6 +128,7 @@ export default function TourRideView() {
           {tr.mode === 'sim'
             ? 'Der Widerstand folgt der Steigung der Strecke, deine Watt bestimmen die Geschwindigkeit.'
             : 'Feste Leistung wie im Workout; der Punkt auf der Karte folgt trotzdem deiner Geschwindigkeit.'}
+          {' '}Kartenansicht: „Ganze Strecke“ zeigt die komplette Tour, „Karte folgt dem Punkt“ zoomt näher heran und bleibt auf dir.
         </div>
       </div>
 

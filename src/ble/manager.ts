@@ -45,6 +45,7 @@ export async function connectTrainer(sim = false): Promise<void> {
         power: d.power,
         cadence: d.cadence ?? st.telemetry.cadence,
         speedKmh: d.speedKmh ?? st.telemetry.speedKmh,
+        resistanceLevel: d.resistanceLevel ?? st.telemetry.resistanceLevel,
         lastDataAt: Date.now(),
       },
       dataStale: false,

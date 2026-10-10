@@ -183,12 +183,13 @@ export function parseIndoorBikeData(dv: DataView): TrainerData {
   let speedKmh: number | null = null
   let cadence: number | null = null
   let power: number | null = null
+  let resistanceLevel: number | null = null
   if (!(flags & 0x0001)) { speedKmh = dv.getUint16(offset, true) / 100; offset += 2 } // Instantaneous Speed
   if (flags & 0x0002) offset += 2 // Average Speed
   if (flags & 0x0004) { cadence = dv.getUint16(offset, true) / 2; offset += 2 } // Instantaneous Cadence
   if (flags & 0x0008) offset += 2 // Average Cadence
   if (flags & 0x0010) offset += 3 // Total Distance
-  if (flags & 0x0020) offset += 2 // Resistance Level
+  if (flags & 0x0020) { resistanceLevel = dv.getInt16(offset, true); offset += 2 } // Resistance Level
   if (flags & 0x0040) { power = dv.getInt16(offset, true); offset += 2 } // Instantaneous Power
-  return { power, cadence, speedKmh }
+  return { power, cadence, speedKmh, resistanceLevel }
 }
