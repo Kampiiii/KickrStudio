@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
 import { bridge } from '../bridge'
 import { expandSegments, fmtDuration, workoutDuration, type Segment, type Workout } from '../engine/model'
+import { parseZwo } from '../engine/zwo'
 import WorkoutGraph from '../components/WorkoutGraph'
 import { startWorkout } from '../engine/player'
 
@@ -9,6 +10,28 @@ export default function WorkoutsPage() {
   const app = useApp()
   const [editing, setEditing] = useState<Workout | null>(null)
   const [filter, setFilter] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // .zwo-Dateien einlesen (mehrere auf einmal möglich) und als eigene Programme speichern
+  const importZwo = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    let ok = 0, skipped = 0
+    const errors: string[] = []
+    for (const f of Array.from(files)) {
+      try {
+        const r = parseZwo(await f.text(), f.name)
+        await bridge.saveWorkout(r.workout)
+        ok++
+        skipped += r.skipped
+      } catch (e) {
+        errors.push(`${f.name}: ${(e as Error).message}`)
+      }
+    }
+    setState({ workouts: await loadAllWorkouts() })
+    if (ok) showToast(`${ok} Workout(s) importiert ✓${skipped ? ` (${skipped} nicht unterstützte Elemente übersprungen)` : ''}`)
+    if (errors.length) showToast(errors[0] + (errors.length > 1 ? ` (+${errors.length - 1} weitere)` : ''), 'err')
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
   const workouts = app.workouts.filter(w =>
     !filter || w.name.toLowerCase().includes(filter.toLowerCase()) || (w.tags || []).some(t => t.toLowerCase().includes(filter.toLowerCase()))
@@ -22,6 +45,10 @@ export default function WorkoutsPage() {
       <div className="row" style={{ marginBottom: 16 }}>
         <input type="text" placeholder="Suchen …" value={filter} onChange={e => setFilter(e.target.value)} style={{ maxWidth: 260 }} />
         <div style={{ flex: 1 }} />
+        <input ref={fileRef} type="file" accept=".zwo,text/xml,application/xml" multiple style={{ display: 'none' }}
+          onChange={e => importZwo(e.target.files)} />
+        <button className="btn" title="Workouts aus .zwo-Dateien übernehmen (z. B. Custom-Workouts von Community-Seiten)"
+          onClick={() => fileRef.current?.click()}>📥 ZWO importieren</button>
         <button className="btn primary" onClick={() => setEditing({
           id: '', name: 'Neues Workout', description: '', source: 'custom',
           segments: [

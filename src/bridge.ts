@@ -220,7 +220,8 @@ const browserMock: KickrBridge = {
   listBody: async () => ls('ks-body', []),
   listPlan: async () => ls('ks-plan', []),
   savePlanEntry: async (entry) => {
-    if (!entry.id) entry.id = 'p-' + Date.now().toString(36)
+    // Zufallsanteil wie im echten Speicher, sonst kollidieren IDs bei schnellen Mehrfach-Speicherungen
+    if (!entry.id) entry.id = 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     const all = ls<PlanEntry[]>('ks-plan', []).filter(e => e.id !== entry.id)
     all.push(entry); all.sort((a, b) => a.date.localeCompare(b.date)); lsSet('ks-plan', all)
     return entry

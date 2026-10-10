@@ -5,6 +5,7 @@ import TrainPage from './pages/TrainPage'
 import PlanPage from './pages/PlanPage'
 import WorkoutsPage, { loadAllWorkouts } from './pages/WorkoutsPage'
 import ToursPage from './pages/ToursPage'
+import PlansPage from './pages/PlansPage'
 import HistoryPage from './pages/HistoryPage'
 import BodyPage from './pages/BodyPage'
 import SettingsPage from './pages/SettingsPage'
@@ -17,6 +18,7 @@ const NAV: { page: Page; label: string; ico: string }[] = [
   { page: 'train', label: 'Training', ico: '🚴' },
   { page: 'plan', label: 'Plan', ico: '🗓️' },
   { page: 'workouts', label: 'Programme', ico: '📋' },
+  { page: 'plans', label: 'Pläne', ico: '📚' },
   { page: 'tours', label: 'Touren', ico: '🗺️' },
   { page: 'history', label: 'Verlauf', ico: '📈' },
   { page: 'body', label: 'Körper', ico: '⚖️' },
@@ -94,6 +96,7 @@ export default function App() {
         {app.page === 'train' && <TrainPage />}
         {app.page === 'plan' && <PlanPage />}
         {app.page === 'workouts' && <WorkoutsPage />}
+        {app.page === 'plans' && <PlansPage />}
         {app.page === 'tours' && <ToursPage />}
         {app.page === 'history' && <HistoryPage />}
         {app.page === 'body' && <BodyPage />}

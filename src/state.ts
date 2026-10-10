@@ -6,7 +6,7 @@ import type { Settings, Session, SessionMeta, QueuedWorkout, PlanEntry, DraftSes
 import type { ConnState } from './ble/types'
 import type { TourRide } from './engine/tour'
 
-export type Page = 'train' | 'plan' | 'workouts' | 'tours' | 'history' | 'body' | 'coach' | 'settings' | 'debug'
+export type Page = 'train' | 'plan' | 'workouts' | 'plans' | 'tours' | 'history' | 'body' | 'coach' | 'settings' | 'debug'
 
 export interface Telemetry {
   power: number | null
