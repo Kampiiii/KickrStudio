@@ -392,7 +392,9 @@ man nichts in die App eintragen.
 - **Region:** Bucket, Dataset und Verbindung liegen alle in `europe-west3`. Das muss so bleiben,
   sonst schlagen Abfragen fehl.
 - **Nicht exportiert:** Zugangsdaten aus `settings.json`.
-- **Abfrage-Kostenbremse:** Der Agent bricht Abfragen über ca. 100 MB ab (`maximum_bytes_billed`).
+- **Abfrage-Kostenbremse:** Der Agent bricht Abfragen über ca. 1 GB ab (`maximum_bytes_billed`, rund 0,006 $ je
+  Abfrage). Sie muss mit dem Datenbestand mitwachsen: Bei 4,7 Mio. Sekundenwerten scannt die View `power_quality`
+  etwa 170 MB, mit der früheren Grenze von 100 MB scheiterte der Coach daran.
 
 ## 9. Befehle
 

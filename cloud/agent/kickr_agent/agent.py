@@ -44,7 +44,9 @@ def _query_readonly(query: str, max_rows: int) -> list:
     stripped = query.strip().rstrip(";")
     if not re.match(r"^(select|with)\b", stripped, re.IGNORECASE) or _FORBIDDEN.search(stripped):
         raise ValueError("Nur lesende SELECT-Abfragen sind erlaubt.")
-    config = bigquery.QueryJobConfig(maximum_bytes_billed=100_000_000)  # Kostenbremse ~100 MB
+    # Kostenbremse ~1 GB (≈ 0,006 $ je Abfrage). Früher 100 MB; mit 4,7 Mio. Sekundenwerten scannt schon
+    # die View power_quality rund 170 MB, deshalb war die alte Grenze zu knapp.
+    config = bigquery.QueryJobConfig(maximum_bytes_billed=1_000_000_000)
     return [dict(r) for r in _client.query(stripped, job_config=config).result(max_results=max_rows)]
 
 
