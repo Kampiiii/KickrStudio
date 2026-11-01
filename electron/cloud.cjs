@@ -266,6 +266,41 @@ async function test() {
   return problems.length ? { ok: false, error: problems.join('; ') } : { ok: true }
 }
 
+// ---------- Personal Trainer (Tagesempfehlung aus dem täglichen Cloud-Job) ----------
+
+const isNotFound = (e) => e?.code === 404 || /not found/i.test(String(e?.message || ''))
+
+// Neueste Empfehlung; null, solange der Cloud-Job noch nie gelaufen ist (Tabelle fehlt).
+async function recommendation() {
+  const c = config()
+  const { BigQuery } = require('@google-cloud/bigquery')
+  try {
+    const [rows] = await new BigQuery({ projectId: c.projectId, location: c.location }).query({
+      query: `SELECT CAST(day AS STRING) AS day, phase, rest_day AS restDay, workout_id AS workoutId, workout_name AS workoutName,
+                     text, source, reasons, CAST(created_at AS STRING) AS createdAt
+              FROM ${q(c, 'recommendations')} ORDER BY day DESC LIMIT 1`,
+      location: c.location,
+    })
+    return { ok: true, recommendation: rows[0] || null }
+  } catch (e) {
+    if (isNotFound(e)) return { ok: true, recommendation: null }
+    throw e
+  }
+}
+
+// Check-in des Tages (Müdigkeit/Beschwerden) für die nächste Berechnung des Cloud-Jobs.
+async function saveCheckin(data) {
+  const c = config()
+  const { BigQuery } = require('@google-cloud/bigquery')
+  const bq = new BigQuery({ projectId: c.projectId, location: c.location })
+  await bq.query({ query: `CREATE TABLE IF NOT EXISTS ${q(c, 'trainer_input')} (ts TIMESTAMP, kind STRING, data STRING)`, location: c.location })
+  await bq.query({
+    query: `INSERT INTO ${q(c, 'trainer_input')} (ts, kind, data) VALUES (CURRENT_TIMESTAMP(), 'checkin', @data)`,
+    params: { data: JSON.stringify(data) }, location: c.location,
+  })
+  return { ok: true }
+}
+
 // ---------- Coach (Agent auf Cloud Run) ----------
 
 function gcloudCommand() {
@@ -347,4 +382,4 @@ async function askAgent(question, sessionId) {
   return { ok: true, answer: answer || (charts.length || workouts.length ? '' : '(keine Antwort erhalten)'), tools, charts, workouts }
 }
 
-module.exports = { sync, test, askAgent, buildSql, parseEvents, ndjson, identityToken }
+module.exports = { recommendation, saveCheckin, sync, test, askAgent, buildSql, parseEvents, ndjson, identityToken }

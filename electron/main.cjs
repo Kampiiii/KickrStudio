@@ -245,6 +245,8 @@ const cloudCall = (fn) => async (_e, ...args) => {
   catch (e) { logDiag('CLOUD-ERROR: ' + (e?.stack || e)); return { ok: false, error: String(e?.message || e) } }
 }
 ipcMain.handle('cloud:test', cloudCall(() => cloud.test()))
+ipcMain.handle('cloud:recommendation', cloudCall(() => cloud.recommendation()))
+ipcMain.handle('cloud:checkin', cloudCall((data) => cloud.saveCheckin(data)))
 ipcMain.handle('cloud:sync', cloudCall(() => cloud.sync()))
 ipcMain.handle('cloud:ask', cloudCall((question, sessionId) => cloud.askAgent(question, sessionId)))
 

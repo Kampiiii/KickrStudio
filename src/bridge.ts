@@ -158,6 +158,8 @@ export interface KickrBridge {
   relaunchApp(): Promise<void>
 
   cloudTest(): Promise<{ ok: boolean; error?: string }>
+  cloudRecommendation(): Promise<{ ok: boolean; recommendation?: Recommendation | null; error?: string }>
+  cloudCheckin(data: Checkin): Promise<{ ok: boolean; error?: string }>
   cloudSync(): Promise<{ ok: boolean; uploadedSessions?: number; totalSessions?: number; bodyRows?: number; planRows?: number; seconds?: number; error?: string }>
   cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; charts?: ChartSpec[]; workouts?: WorkoutProposal[]; error?: string }>
 
@@ -168,6 +170,13 @@ export interface KickrBridge {
 declare global {
   interface Window { kickr?: KickrBridge }
 }
+
+// Tagesempfehlung des Cloud-Trainers (Tabelle recommendations) und Check-in (trainer_input)
+export interface Recommendation {
+  day: string; phase: string; restDay: boolean; workoutId: string | null; workoutName: string | null
+  text: string; source: 'gemini' | 'regel'; reasons: string; createdAt: string
+}
+export interface Checkin { tired?: boolean; dizzy?: boolean; ear_pressure?: boolean; pain?: boolean }
 
 export const isElectron = typeof window !== 'undefined' && !!window.kickr
 
@@ -260,6 +269,8 @@ const browserMock: KickrBridge = {
   relaunchApp: async () => { window.location.reload() },
 
   cloudTest: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
+  cloudRecommendation: async () => ({ ok: true, recommendation: null }),
+  cloudCheckin: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
   cloudSync: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
   // Browser-Testmodus: "Demo-Diagramm" in der Frage liefert ein Beispiel, um die Darstellung ohne Cloud zu prüfen
   cloudAsk: async (question) => {

@@ -11,6 +11,7 @@ import { computeSummary } from '../engine/metrics'
 import { runCloudSync } from '../engine/cloudSync'
 import WorkoutGraph from '../components/WorkoutGraph'
 import SummaryView from '../components/SummaryView'
+import TrainerCard from '../components/TrainerCard'
 
 function todayIso(): string {
   const d = new Date()
@@ -49,6 +50,8 @@ function IdleView() {
       <div className="page-title">Training <span className="sub">FTP {settings!.ftp} W</span></div>
 
       {app.recoveredDraft && <RecoveredDraftBanner draft={app.recoveredDraft} />}
+
+      <TrainerCard />
 
       {queued && (
         <div className="queued-banner">
