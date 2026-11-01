@@ -9,14 +9,19 @@ Eingaben der App/des Nutzers stehen in trainer_input (kind = 'restrictions' | 'c
   restrictions: {"until": "2026-12-01", "noIntensity": true, "maxIf": 0.6, "maxMinutes": 45, "noTraining": false, "note": "..."}
   checkin:      {"tired": true, "dizzy": false, "ear_pressure": false, "pain": false}  (gilt nur am selben Berliner Tag)
 
-Aufruf:  python trainer.py            -> berechnen und speichern
+Aufruf:  python trainer.py            -> berechnen, speichern, E-Mail senden
          python trainer.py --dry-run  -> nur ausgeben
+         python trainer.py --no-mail  -> speichern ohne E-Mail
+
+E-Mail über Umgebungsvariablen: MAIL_TO, MAIL_FROM (Gmail-Adresse) und MAIL_PASSWORD (App-Passwort, aus Secret Manager).
 """
 from __future__ import annotations
 
 import json
 import os
+import smtplib
 import sys
+from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 
 from google.cloud import bigquery
@@ -102,6 +107,30 @@ def decide(status: dict, cands: list[dict], recent: list[dict], checkin: dict | 
     return {**default, "source": "regel"}
 
 
+def send_mail(row: dict, status: dict) -> bool:
+    """Empfehlung per Gmail-SMTP an MAIL_TO. Ohne MAIL_TO/MAIL_PASSWORD (z. B. lokal) wird nichts gesendet."""
+    to, user, pw = os.environ.get("MAIL_TO"), os.environ.get("MAIL_FROM"), os.environ.get("MAIL_PASSWORD")
+    if not (to and user and pw):
+        print("E-Mail nicht konfiguriert -> kein Versand")
+        return False
+    headline = f"Training heute: {row['workout_name']}" if row["workout_name"] else "Heute Ruhetag"
+    load = status["load"]
+    body = "\n".join([
+        headline, "", row["text"], "",
+        f"Phase: {row['phase']} · Woche bisher {load['this_week']} Punkte · Budget übrig {status['caps']['remaining_budget']}",
+        "Beschwerden wie Schwindel oder Ohrdruck? Dann heute lieber pausieren und bei Anhalten ärztlichen Rat einholen.",
+        "Check-in und Programm-Auswahl findest du in KickrStudio auf der Train-Seite.", "",
+    ])
+    msg = EmailMessage()
+    msg["Subject"], msg["From"], msg["To"] = f"🚴 {headline}", f"KickrStudio Trainer <{user}>", to
+    msg.set_content(body)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+        s.login(user, pw)
+        s.send_message(msg)
+    print(f"E-Mail an {to} gesendet.")
+    return True
+
+
 def main() -> int:
     dry = "--dry-run" in sys.argv
     bq = bigquery.Client(project=PROJECT, location=BQ_LOCATION)
@@ -143,6 +172,8 @@ def main() -> int:
     bq.query(f"INSERT INTO {D}.recommendations ({cols}) VALUES ({', '.join('@' + k for k in row)})",
              job_config=bigquery.QueryJobConfig(query_parameters=params)).result()
     print("Empfehlung gespeichert.")
+    if "--no-mail" not in sys.argv:
+        send_mail(row, status)  # zuletzt: scheitert der Versand, ist die Empfehlung trotzdem gespeichert
     return 0
 
 
