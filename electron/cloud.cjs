@@ -271,11 +271,14 @@ function gcloudCommand() {
 }
 
 // Der Agent läuft privat auf Cloud Run: Aufrufe brauchen ein Google-ID-Token deiner Anmeldung.
+let idTokenCache = { token: '', at: 0 }
 function identityToken() {
+  // Google-ID-Tokens gelten eine Stunde; 45 Minuten wiederverwenden, statt bei jedem Aufruf gcloud zu starten
+  if (idTokenCache.token && Date.now() - idTokenCache.at < 45 * 60 * 1000) return Promise.resolve(idTokenCache.token)
   return new Promise((resolve, reject) => {
     exec(`${gcloudCommand()} auth print-identity-token`, { windowsHide: true, timeout: 30000 }, (err, stdout, stderr) => {
       if (err) reject(new Error('ID-Token nicht verfügbar (ist gcloud installiert und angemeldet?): ' + (stderr || err.message).trim()))
-      else resolve(stdout.trim())
+      else { idTokenCache = { token: stdout.trim(), at: Date.now() }; resolve(idTokenCache.token) }
     })
   })
 }
@@ -336,4 +339,4 @@ async function askAgent(question, sessionId) {
   return { ok: true, answer: answer || (charts.length || workouts.length ? '' : '(keine Antwort erhalten)'), tools, charts, workouts }
 }
 
-module.exports = { sync, test, askAgent, buildSql, parseEvents, ndjson }
+module.exports = { sync, test, askAgent, buildSql, parseEvents, ndjson, identityToken }

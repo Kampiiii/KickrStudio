@@ -27,8 +27,8 @@ HERE = Path(__file__).parent
 
 @dataclass
 class Config:
-    hr_max: float = 185.0     # TODO: aus den App-Einstellungen übernehmen (später per Sync nach BigQuery)
-    hr_rest: float = 55.0
+    hr_max: float = 180.0     # vom Nutzer genannt; TODO: aus den App-Einstellungen übernehmen (später per Sync)
+    hr_rest: float = 45.0
     lthr_frac: float = 0.85   # Schwellen-Herzfrequenz als Anteil der Herzfrequenzreserve (Schätzung)
     assumed_if: float = 0.6   # Annahme, wenn weder Leistung noch Herzfrequenz vorliegen
     gap_days: int = 14        # ab so vielen Tagen ohne Einheit gilt es als Pause

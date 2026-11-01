@@ -1,0 +1,6 @@
+flask
+gunicorn
+requests
+google-auth
+google-cloud-secret-manager
+google-cloud-bigquery

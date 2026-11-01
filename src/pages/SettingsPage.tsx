@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
-import { bridge, isElectron, type Settings } from '../bridge'
+import { bridge, isElectron, stravaReady, type Settings } from '../bridge'
 import { runCloudSync } from '../engine/cloudSync'
 
 export default function SettingsPage() {
@@ -143,7 +143,9 @@ export default function SettingsPage() {
               <input type="password" value={s.strava.clientSecret} onChange={e => upd({ strava: { ...s.strava, clientSecret: e.target.value.trim() } })} />
             </label>
             <div className="full row">
-              {s.strava.refreshToken
+              {s.cloud.stravaViaCloud
+                ? <span style={{ color: 'var(--accent)' }}>✓ Verbunden über die Cloud (Token-Dienst) — Trennen und neu verbinden geschieht dort, nicht hier.</span>
+                : s.strava.refreshToken
                 ? <>
                     <span style={{ color: 'var(--accent)' }}>✓ Verbunden{s.strava.athleteName ? ` als ${s.strava.athleteName}` : ''}</span>
                     <button className="btn small" onClick={async () => { await bridge.stravaDisconnect(); setState({ settings: await bridge.getSettings() }) }}>Trennen</button>
@@ -156,7 +158,7 @@ export default function SettingsPage() {
               Einmalig nötig: Unter <a style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => bridge.openExternal('https://www.strava.com/settings/api')}>strava.com/settings/api</a> eine
               App anlegen („Autorisierungs-Callback-Domain“: <b>localhost</b>), dann Client-ID und Secret hier eintragen und verbinden.
             </div>
-            {s.strava.refreshToken && (
+            {stravaReady(s) && (
               <>
                 <div className="full row">
                   <button className="btn small" disabled={backfilling} onClick={backfillStreams}>
@@ -295,6 +297,18 @@ function CloudSection({ s, upd }: { s: Settings; upd: (patch: Partial<Settings>)
           <input type="checkbox" checked={c.autoSync} style={{ width: 'auto' }} onChange={e => set({ autoSync: e.target.checked })} />
           Nach jeder Einheit automatisch in die Cloud synchronisieren
         </label>
+        <label className="field full">Strava-Token-Dienst (Cloud Run)
+          <input type="text" value={c.stravaBrokerUrl} placeholder="https://strava-broker-…run.app" onChange={e => set({ stravaBrokerUrl: e.target.value.trim() })} />
+        </label>
+        <label className="full row" style={{ gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-dim)' }}>
+          <input type="checkbox" checked={c.stravaViaCloud} style={{ width: 'auto' }} onChange={e => set({ stravaViaCloud: e.target.checked })} />
+          Strava-Zugang über die Cloud nutzen (nötig für den automatischen Abgleich ohne laufende App)
+        </label>
+        <div className="full hint">
+          Erst einschalten, nachdem du Strava einmalig für die Cloud autorisiert hast (<span className="kbd">python authorize.py</span> in
+          <span className="kbd">cloud/strava</span>). Strava gibt bei jeder Erneuerung ein neues Refresh-Token aus und entwertet das alte —
+          deshalb darf es nur <b>einen</b> Besitzer geben; ab dann ist das die Cloud, und die App holt sich nur kurzlebige Zugangs-Tokens.
+        </div>
         <div className="full row wrap">
           <button className="btn" disabled={testing} onClick={test}>{testing ? 'Teste …' : 'Verbindung testen'}</button>
           <button className="btn primary" disabled={syncing} onClick={sync}>{syncing ? 'Synchronisiere …' : '☁ Jetzt synchronisieren'}</button>

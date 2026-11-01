@@ -63,8 +63,22 @@ function connect() {
   })
 }
 
+// Cloud-Modus: Das (rotierende) Refresh-Token gehört dem Token-Dienst in der Cloud. Die App bekommt nur ein
+// kurzlebiges Access-Token und hält selbst kein Refresh-Token -- sonst würden sich App und Cloud-Job gegenseitig
+// aussperren, weil Strava bei jedem Refresh das alte Refresh-Token ungültig macht.
+async function brokerToken(brokerUrl) {
+  const idToken = await require('./cloud.cjs').identityToken()
+  const r = await fetch(`${brokerUrl.replace(/\/+$/, '')}/token`, {
+    method: 'POST', headers: { Authorization: `Bearer ${idToken}` }, signal: AbortSignal.timeout(60000),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok || !data.access_token) throw new Error('Token-Dienst: ' + (data.error || `HTTP ${r.status}`))
+  return data.access_token
+}
+
 async function getFreshToken() {
   const settings = store.getSettings()
+  if (settings.cloud?.stravaViaCloud && settings.cloud.stravaBrokerUrl) return brokerToken(settings.cloud.stravaBrokerUrl)
   const s = settings.strava
   if (!s.refreshToken) throw new Error('Nicht mit Strava verbunden (Settings → Strava → Verbinden).')
   if (s.expiresAt && s.expiresAt * 1000 > Date.now() + 60000) return s.accessToken

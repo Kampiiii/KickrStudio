@@ -18,7 +18,12 @@ export interface Settings {
   strava: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; athleteName: string }
   withings: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string; expiresAt: number; userId: string; autoWeight: boolean; lastSyncAt: string }
   erg: { smoothingSec: number; trimStepPct: number; resendIntervalSec: number }
-  cloud: { projectId: string; bucket: string; dataset: string; location: string; agentUrl: string; agentApp: string; autoSync: boolean }
+  cloud: {
+    projectId: string; bucket: string; dataset: string; location: string; agentUrl: string; agentApp: string; autoSync: boolean
+    // Strava-Token-Dienst in der Cloud: einziger Besitzer des (rotierenden) Refresh-Tokens, damit auch der
+    // automatische Abgleich ohne laufende App funktioniert. Aktivieren erst NACH der Cloud-Autorisierung.
+    stravaBrokerUrl: string; stravaViaCloud: boolean
+  }
   devices: { trainer: { name: string } | null; hr: { name: string } | null }
   autoConnect: boolean
   httpPort: number
@@ -165,6 +170,11 @@ declare global {
 
 export const isElectron = typeof window !== 'undefined' && !!window.kickr
 
+// Strava gilt als verbunden, wenn die App ein eigenes Token hat ODER der Zugang über den Cloud-Token-Dienst läuft
+export function stravaReady(s: Settings | null | undefined): boolean {
+  return !!(s?.strava.refreshToken || (s?.cloud?.stravaViaCloud && s.cloud.stravaBrokerUrl))
+}
+
 function ls<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback } catch { return fallback }
 }
@@ -181,7 +191,7 @@ const DEFAULT_SETTINGS: Settings = {
   strava: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, athleteName: '' },
   withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
-  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false },
+  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false, stravaBrokerUrl: 'https://strava-broker-777677252355.europe-west3.run.app', stravaViaCloud: false },
   devices: { trainer: null, hr: null },
   autoConnect: true,
   httpPort: 4571,

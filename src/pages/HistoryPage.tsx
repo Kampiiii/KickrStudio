@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
-import { bridge, type Session, type SessionMeta } from '../bridge'
+import { bridge, stravaReady as isStravaReady, type Session, type SessionMeta } from '../bridge'
 import { fmtDuration } from '../engine/model'
 import SummaryView from '../components/SummaryView'
 import SessionChart from '../components/SessionChart'
@@ -45,7 +45,7 @@ export default function HistoryPage() {
   const [tab, setTab] = useState<Tab>('bike')
   const [detail, setDetail] = useState<Session | null>(null)
   const [importing, setImporting] = useState(false)
-  const stravaReady = !!app.settings?.strava.refreshToken
+  const stravaReady = isStravaReady(app.settings)
 
   const bikeSessions = useMemo(() => app.sessions.filter(s => s.sport !== 'run'), [app.sessions])
   const runSessions = useMemo(() => app.sessions.filter(s => s.sport === 'run'), [app.sessions])
@@ -208,7 +208,7 @@ function SessionDetail({ session, onClose }: { session: Session; onClose: () => 
   const app = useApp()
   const [uploading, setUploading] = useState(false)
   const [activityId, setActivityId] = useState(session.stravaActivityId ?? null)
-  const stravaReady = !!app.settings?.strava.refreshToken
+  const stravaReady = isStravaReady(app.settings)
   const isRun = session.sport === 'run'
   const imported = session.source === 'strava' // von Strava importiert (Lauf oder Outdoor-Fahrt), nicht in der App aufgezeichnet
   const hasPower = !!session.summary?.avgPower

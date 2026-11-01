@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
   withings: { clientId: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, userId: '', autoWeight: true, lastSyncAt: '' },
   erg: { smoothingSec: 3, trimStepPct: 5, resendIntervalSec: 10 },
   devices: { trainer: null, hr: null },
-  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false },
+  cloud: { projectId: 'kickr-studio-lab', bucket: 'kickr-studio-lab-data', dataset: 'kickr', location: 'europe-west3', agentUrl: '', agentApp: 'kickr_agent', autoSync: false, stravaBrokerUrl: 'https://strava-broker-777677252355.europe-west3.run.app', stravaViaCloud: false },
   autoConnect: true,
   httpPort: 4571,
 }

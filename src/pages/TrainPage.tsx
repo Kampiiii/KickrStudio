@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp, setState, showToast } from '../state'
-import { bridge } from '../bridge'
+import { bridge, stravaReady as isStravaReady } from '../bridge'
 import { connectTrainer, connectHr, disconnectTrainer, disconnectHr } from '../ble/manager'
 import { startWorkout, pauseWorkout, resumeWorkout, skipSegment, trim, dismissSummary, setFreerideTarget } from '../engine/player'
 import EndButton from '../components/EndButton'
@@ -271,7 +271,7 @@ function FinishedView() {
   const session = app.lastFinished!
   const [uploading, setUploading] = useState(false)
   const [uploaded, setUploaded] = useState<number | null>(session.stravaActivityId ?? null)
-  const stravaReady = !!app.settings?.strava.refreshToken
+  const stravaReady = isStravaReady(app.settings)
   const [cloudBusy, setCloudBusy] = useState(false)
   const [cloudDone, setCloudDone] = useState(!!session.cloudSyncedAt)
 
