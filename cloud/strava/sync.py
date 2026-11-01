@@ -72,7 +72,8 @@ COLS = [("session_id", "STRING"), ("name", "STRING"), ("started_at", "TIMESTAMP"
 def insert(bq: bigquery.Client, row: dict) -> bool:
     names = ", ".join(c for c, _ in COLS)
     values = ", ".join(f"@{c}" for c, _ in COLS)
-    sql = (f"INSERT INTO {T} ({names}) SELECT {values} "
+    # "FROM (SELECT 1)": BigQuery erlaubt kein WHERE ohne FROM
+    sql = (f"INSERT INTO {T} ({names}) SELECT {values} FROM (SELECT 1) "
            f"WHERE NOT EXISTS (SELECT 1 FROM {T} WHERE session_id = @session_id OR strava_activity_id = @strava_activity_id)")
     cfg = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter(c, t, row[c]) for c, t in COLS])
     job = bq.query(sql, job_config=cfg)

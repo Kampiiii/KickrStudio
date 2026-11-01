@@ -40,6 +40,14 @@ CREATE OR REPLACE EXTERNAL TABLE ${q(c, 'raw_json_sessions')} (
                         gradePct FLOAT64, speedKmh FLOAT64>>
 ) OPTIONS (format = 'NEWLINE_DELIMITED_JSON', uris = ['${uri(c, 'sessions')}'], ignore_unknown_values = true);
 
+-- Der Cloud-Abgleich (strava-sync) legt Aktivitäten als Platzhalter 'strava-<id>' an. Bringt die App dieselbe
+-- Strava-Aktivität mit eigener Session-ID (eigener Kickr-Upload), den Platzhalter entfernen -- sonst wäre die
+-- Einheit doppelt gezählt. Die Einheit der App hat die besseren Daten (gemessene Leistung, Sekundenwerte).
+DELETE FROM ${q(c, 'sessions')} t
+WHERE STARTS_WITH(t.session_id, 'strava-')
+  AND t.strava_activity_id IN (
+    SELECT stravaActivityId FROM ${q(c, 'raw_json_sessions')} WHERE NOT STARTS_WITH(id, 'strava-') AND stravaActivityId IS NOT NULL);
+
 MERGE ${q(c, 'sessions')} t
 USING (
   SELECT id AS session_id, name, workoutId AS workout_id, TIMESTAMP(startedAt) AS started_at,
