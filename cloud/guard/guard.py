@@ -27,11 +27,83 @@ HERE = Path(__file__).parent
 
 @dataclass
 class Config:
-    hr_max: float = 180.0     # vom Nutzer genannt; TODO: aus den App-Einstellungen übernehmen (später per Sync)
+    hr_max: float = 183.0     # höchster selbst gemessener Wert (Garmin rechnet mit 186); TODO: per Sync aus den App-Einstellungen
     hr_rest: float = 45.0
     lthr_frac: float = 0.85   # Schwellen-Herzfrequenz als Anteil der Herzfrequenzreserve (Schätzung)
     assumed_if: float = 0.6   # Annahme, wenn weder Leistung noch Herzfrequenz vorliegen
     gap_days: int = 14        # ab so vielen Tagen ohne Einheit gilt es als Pause
+    # Wochensteigerung: ab ~45 Jahren etwas vorsichtiger (längere Erholung) -- Faustregel, keine Messung
+    ramp_phase: float = 1.20  # Wiedereinstieg: höchstens so viel mehr als die letzten 7 Tage (+ 20 Punkte)
+    ramp_normal: float = 1.08 # normaler Betrieb: höchstens so viel mehr als der 4-Wochen-Schnitt
+
+
+# Feste Termine, die nicht aufgezeichnet werden (weekday: Montag = 0). `if_` = geschätzter Intensitätsfaktor.
+# Überschreibbar über trainer_input (kind = 'profile'): {"commitments": [...], "commitmentsPaused": true}
+COMMITMENTS = [
+    {"weekday": 2, "name": "Tennis (Doppel)",    "minutes": 60, "if_": 0.55, "level": "low"},
+    {"weekday": 3, "name": "Volleyball",         "minutes": 60, "if_": 0.50, "level": "low"},
+    {"weekday": 4, "name": "Tennis mit Trainer", "minutes": 60, "if_": 0.70, "level": "moderate"},
+]
+WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+
+def commitment_load(c: dict) -> float:
+    return c["minutes"] / 60 * c["if_"] ** 2 * 100
+
+
+# ---------- Bereitschaft aus Garmin-Tageswerten (verschärft nur, lockert nie) ----------
+
+def readiness(rows: list[dict] | None, today: date) -> dict:
+    """rows: date, resting_hr, hrv_last_night, sleep_seconds. Vergleicht die letzten zwei Tage mit der eigenen Basislinie
+    (Median der Tage 3-35 davor, mindestens 10 Messwerte). Fehlende Werte (Uhr nicht getragen) werden nicht geraten."""
+    by = {r["date"]: r for r in (rows or [])}
+    recent = [today - timedelta(days=i) for i in range(3)]
+
+    def latest(key):
+        for d in recent:
+            v = by.get(d, {}).get(key)
+            if v is not None:
+                return v
+        return None
+
+    def baseline(key):
+        vals = [r[key] for d, r in by.items() if today - timedelta(days=35) <= d <= today - timedelta(days=3) and r.get(key) is not None]
+        return statistics.median(vals) if len(vals) >= 10 else None
+
+    flags, points, seen = [], 0, 0
+
+    rhr, rhr_b = latest("resting_hr"), baseline("resting_hr")
+    if rhr is not None:
+        seen += 1
+        if rhr_b is not None and rhr - rhr_b >= 5:
+            strong = rhr - rhr_b >= 8
+            points += 2 if strong else 1
+            flags.append(f"Ruhepuls {rhr:.0f} (dein Schnitt {rhr_b:.0f})")
+    hrv, hrv_b = latest("hrv_last_night"), baseline("hrv_last_night")
+    if hrv is not None:
+        seen += 1
+        if hrv_b and hrv / hrv_b < 0.8:
+            points += 2 if hrv / hrv_b < 0.65 else 1
+            flags.append(f"HRV in der Nacht {hrv:.0f} (dein Schnitt {hrv_b:.0f})")
+    sleep = latest("sleep_seconds")
+    if sleep:
+        seen += 1
+        if sleep < 6 * 3600:
+            points += 2 if sleep < 5 * 3600 else 1
+            flags.append(f"Schlaf nur {sleep / 3600:.1f} h")
+
+    if seen == 0:
+        level = "unknown"
+    elif points >= 4:
+        level = "rest"
+    elif points >= 2:
+        level = "easy"
+    elif points == 1:
+        level = "no_intensity"
+    else:
+        level = "ok"
+    return {"level": level, "points": points, "flags": flags, "metrics_seen": seen,
+            "values": {"resting_hr": rhr, "hrv_last_night": hrv, "sleep_hours": round(sleep / 3600, 1) if sleep else None}}
 
 
 # ---------- Belastung je Einheit ----------
@@ -89,7 +161,8 @@ def weekly_loads(daily: dict[date, float], end: date, weeks: int) -> list[tuple[
 
 
 def compute_status(daily: dict[date, float], today: date, cfg: Config | None = None,
-                   restrictions: dict | None = None, checkin: dict | None = None) -> dict:
+                   restrictions: dict | None = None, checkin: dict | None = None,
+                   garmin: list[dict] | None = None, commitments: list[dict] | None = None) -> dict:
     cfg = cfg or Config()
     active = sorted(d for d, v in daily.items() if v > 0 and d <= today)
     last = active[-1] if active else None
@@ -131,11 +204,11 @@ def compute_status(daily: dict[date, float], today: date, cfg: Config | None = N
 
     if phase == "normal":
         # normale Woche: höchstens ~10 % über dem Schnitt der letzten vier Wochen (Minimum 60 Punkte)
-        caps = dict(week_cap=max(60.0, round(last4w_avg * 1.10)), max_sessions=5, max_min=150, max_if=1.2, intensity=True, rest_between=False)
+        caps = dict(week_cap=max(60.0, round(last4w_avg * cfg.ramp_normal)), max_sessions=5, max_min=150, max_if=1.2, intensity=True, rest_between=False)
     else:
         caps = dict(PHASES[phase])
         # zusätzlich nie mehr als ~25 % über der Last der letzten 7 Tage (Minimum = Phasenboden von 60)
-        caps["week_cap"] = min(caps["week_cap"], max(60.0, round(last7 * 1.25 + 20)))
+        caps["week_cap"] = min(caps["week_cap"], max(60.0, round(last7 * cfg.ramp_phase + 20)))
 
     reasons: list[str] = []
     # Vorgaben des Arztes haben Vorrang vor allem anderen
@@ -152,8 +225,35 @@ def compute_status(daily: dict[date, float], today: date, cfg: Config | None = N
             caps["max_sessions"] = 0
         reasons.append(f"Ärztliche Vorgabe beachtet: {r.get('note', 'Einschränkung hinterlegt')}")
 
+    # Feste Ballsport-Termine: Last für heute und den Rest der Woche reservieren, an diesen Tagen und vor dem
+    # intensiveren Termin keine harte Radeinheit.
+    commits = COMMITMENTS if commitments is None else commitments
+    todays = [c for c in commits if c["weekday"] == today.weekday()]
+    ahead = [c for c in commits if c["weekday"] >= today.weekday()]
+    tomorrow_hard = any(c["weekday"] == (today.weekday() + 1) % 7 and c.get("level") == "moderate" for c in commits)
+    reserved = sum(commitment_load(c) for c in ahead)
+    if todays or tomorrow_hard:
+        caps["intensity"] = False
+        caps["max_if"] = min(caps["max_if"], 0.75)
+        reasons.append("Heute " + " und ".join(c["name"] for c in todays) + " -> keine harte Radeinheit." if todays
+                       else "Morgen Tennis mit Trainer (intensiver) -> heute keine harte Radeinheit.")
+
+    # Bereitschaft aus Garmin: verschärft nur
+    rd = readiness(garmin, today) if garmin is not None else None
+    readiness_rest = False
+    if rd:
+        if rd["level"] == "unknown":
+            reasons.append("Keine Garmin-Werte der letzten Tage (Uhr nicht getragen?) -> Bereitschaft nicht beurteilt, nur Belastung und Check-in zählen.")
+        elif rd["level"] != "ok":
+            reasons.append("Körperwerte: " + "; ".join(rd["flags"]) + ".")
+            if rd["level"] in ("easy", "no_intensity", "rest"):
+                caps["intensity"] = False
+            if rd["level"] in ("easy", "rest"):
+                caps["max_if"] = min(caps["max_if"], 0.65)
+            readiness_rest = rd["level"] == "rest"
+
     sessions_week = sum(1 for d in active if week_start(d) == week_start(today))
-    remaining_budget = max(0.0, caps["week_cap"] - cur_week)
+    remaining_budget = max(0.0, caps["week_cap"] - cur_week - reserved)
     sessions_left = max(0, caps["max_sessions"] - sessions_week)
 
     # Sofortige Ruhe-Regeln
@@ -162,6 +262,9 @@ def compute_status(daily: dict[date, float], today: date, cfg: Config | None = N
     if c.get("pain") or c.get("dizzy") or c.get("ear_pressure"):
         rest = True
         reasons.append("Beschwerden gemeldet -> heute kein Training, bei Anhalten ärztlichen Rat einholen.")
+    if readiness_rest:
+        rest = True
+        reasons.append("Deine Körperwerte deuten auf wenig Erholung hin -> heute Ruhetag.")
     if caps["max_sessions"] == 0:
         rest = True
         reasons.append("Laut ärztlicher Vorgabe aktuell kein Training.")
@@ -173,7 +276,8 @@ def compute_status(daily: dict[date, float], today: date, cfg: Config | None = N
         reasons.append("Die Einheiten dieser Woche sind ausgeschöpft.")
     if remaining_budget < 20 and not rest:
         rest = True
-        reasons.append("Das Wochenbudget ist (fast) aufgebraucht.")
+        reasons.append(f"Das Wochenbudget ist durch die Ballsport-Termine (geschätzt {round(reserved)} Punkte) schon ausgeschöpft." if reserved
+                       else "Das Wochenbudget ist (fast) aufgebraucht.")
     if c.get("tired") and not rest:
         caps["max_if"] = min(caps["max_if"], 0.65)
         caps["intensity"] = False
@@ -189,6 +293,9 @@ def compute_status(daily: dict[date, float], today: date, cfg: Config | None = N
                  "baseline_weekly_median": round(baseline), "rebuilt_ratio": round(ratio, 2),
                  "ctl": round(ctl, 1), "atl": round(atl, 1), "tsb": round(ctl - atl, 1)},
         "caps": {**caps, "week_cap": round(caps["week_cap"]), "remaining_budget": round(remaining_budget), "sessions_left": sessions_left},
+        "readiness": rd, "commitments_today": [c["name"] for c in todays],
+        "commitments_ahead": [f"{WEEKDAYS[c['weekday']]}: {c['name']} ({c['minutes']} min, geschätzt {round(commitment_load(c))} Punkte)" for c in ahead],
+        "reserved_for_commitments": round(reserved),
         "weekly_history": [{"week": w.isoformat(), "load": round(v)} for w, v in wk[-12:]],
     }
 

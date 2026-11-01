@@ -3,6 +3,6 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY guard.py trainer.py workouts.json ./
+COPY guard.py garmin_data.py trainer.py workouts.json ./
 # Cloud Run Job: berechnet täglich die Empfehlung (siehe trainer.py)
 CMD ["python", "trainer.py"]

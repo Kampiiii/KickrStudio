@@ -47,6 +47,7 @@ export default function TrainerCard() {
         <b>Heutige Empfehlung{workout ? `: ${workout.name}` : rec.restDay ? ': Ruhetag' : ''}</b>
         <div className="hint">{PHASE_LABEL[rec.phase] || rec.phase}{stale ? ` · Stand ${rec.day}` : ''}{rec.source === 'regel' ? ' · feste Regel' : ''}</div>
         <div style={{ marginTop: 4 }}>{rec.text}</div>
+        {rec.reasons && <div className="hint" style={{ marginTop: 4 }}>Gründe: {rec.reasons}</div>}
         {complaints && <div style={{ marginTop: 4, color: 'var(--warn, #e0a030)' }}>
           Du hast Beschwerden gemeldet: Heute besser kein Training. Halten sie an, sprich mit deiner Ärztin oder deinem Arzt.
         </div>}

@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 
 from google.cloud import bigquery
 
+import garmin_data
 import guard
 
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "kickr-studio-lab")
@@ -67,7 +68,8 @@ def ask_gemini(status: dict, cands: list[dict], recent: list[dict], checkin: dic
     from google.genai import types
 
     pool = cands[:12]
-    prompt = f"""Du bist der persönliche Trainer eines Hobby-Ausdauersportlers (Rad/Laufen, Ruhepuls 45, Maximalpuls 180).
+    prompt = f"""Du bist der persönliche Trainer eines 49-jährigen Hobby-Ausdauersportlers (Rad/Laufen, Ruhepuls 45, Maximalpuls 183).
+Er spielt Ballsport (Mi Tennis-Doppel, Do Volleyball, Fr Tennis mit Trainer), der nicht aufgezeichnet wird. Aktuell: {"AKTIV, in den Grenzen berücksichtigt (siehe feste_termine)" if status.get("commitments_active") else "PAUSIERT (Wiedereinstieg nach OP), nicht einplanen"}.
 Der Code hat bereits entschieden, was heute sicher erlaubt ist. Du wählst NUR aus den erlaubten Programmen
 oder empfiehlst bewusst Ruhe, und erklärst die Wahl in 2-3 kurzen Sätzen auf Deutsch in der Du-Form.
 
@@ -76,8 +78,11 @@ Regeln:
 - Erfinde keine Zahlen; nenne nur Werte aus den Daten. Gib keine medizinischen Ratschläge.
 - Im Wiedereinstieg (phase start/aufbau1/aufbau2) lieber locker und kurz als zu viel. Mit "tsb" negativ (müde) eher locker.
 - Wähle Abwechslung zu den letzten Einheiten, soweit die Grenzen es erlauben.
+- Erwähne kurz die wichtigsten Gründe aus "reasons" und "bereitschaft" (z. B. erhöhter Ruhepuls, Ballsport heute). Fehlen Garmin-Werte, sag das knapp.
 
 Status: {json.dumps({k: status[k] for k in ("phase", "days_since_last", "pause_days", "weeks_since_restart", "load", "caps", "reasons")}, ensure_ascii=False)}
+Bereitschaft (Garmin, gegen deine eigene Basislinie): {json.dumps(status.get("readiness"), ensure_ascii=False, default=str)}
+feste_termine heute: {json.dumps(status["commitments_today"], ensure_ascii=False)}; Rest der Woche: {json.dumps(status["commitments_ahead"], ensure_ascii=False)}
 Check-in heute: {json.dumps(checkin or {}, ensure_ascii=False)}
 Letzte 14 Tage: {json.dumps(recent, ensure_ascii=False)}
 erlaubte_programme: {json.dumps(pool, ensure_ascii=False)}"""
@@ -117,7 +122,8 @@ def send_mail(row: dict, status: dict) -> bool:
     load = status["load"]
     body = "\n".join([
         headline, "", row["text"], "",
-        f"Phase: {row['phase']} · Woche bisher {load['this_week']} Punkte · Budget übrig {status['caps']['remaining_budget']}",
+        f"Phase: {row['phase']} · Woche bisher {load['this_week']} Punkte · davon reserviert für Ballsport {status['reserved_for_commitments']} · Budget übrig {status['caps']['remaining_budget']}",
+        *(["Gründe: " + row["reasons"]] if row["reasons"] else []),
         "Beschwerden wie Schwindel oder Ohrdruck? Dann heute lieber pausieren und bei Anhalten ärztlichen Rat einholen.",
         "Check-in und Programm-Auswahl findest du in KickrStudio auf der Train-Seite.", "",
     ])
@@ -138,19 +144,38 @@ def main() -> int:
         if not dry:
             bq.query(stmt).result()
 
-    cfg = guard.Config(hr_max=float(os.environ.get("HR_MAX", 180)), hr_rest=float(os.environ.get("HR_REST", 45)))
+    cfg = guard.Config(hr_max=float(os.environ.get("HR_MAX", 183)), hr_rest=float(os.environ.get("HR_REST", 45)))
     today = datetime.now(guard.TZ).date()
     start_of_day = datetime(today.year, today.month, today.day, tzinfo=guard.TZ).astimezone(timezone.utc)
     try:
         restrictions = latest_input(bq, "restrictions")
         checkin = latest_input(bq, "checkin", since=start_of_day)
+        profile = latest_input(bq, "profile") or {}
     except Exception as e:  # Tabelle noch nicht angelegt (Trockenlauf)
         print(f"trainer_input nicht lesbar ({e}) -> ohne Vorgaben")
         restrictions = checkin = None
+        profile = {}
+    # Ballsport-Termine zählen erst ab "commitmentsFrom" (Startdatum): davor/ohne Angabe pausiert (z. B. nach der OP)
+    start = profile.get("commitmentsFrom")
+    commitments_on = bool(start) and today >= datetime.fromisoformat(start).date()
+    commitments = profile.get("commitments") if commitments_on else []  # None = Standardtermine
+
+    # Garmin: frische Tageswerte holen und speichern; scheitert das, läuft der Trainer ohne (nie den ganzen Lauf verlieren)
+    garmin_rows = None
+    try:
+        fresh = garmin_data.fetch_days(90, today)
+        print(f"Garmin: {len(fresh)} Tage abgerufen.")
+        if not dry:
+            garmin_data.upsert(bq, fresh)
+        garmin_rows = garmin_data.merge(garmin_data.load(bq), fresh)
+    except Exception as e:
+        print(f"Garmin nicht verfügbar ({e}) -> ohne Körperwerte")
 
     rows = guard.load_rows()
-    status = guard.compute_status(guard.build_daily(rows, cfg), today, cfg, restrictions, checkin)
+
+    status = guard.compute_status(guard.build_daily(rows, cfg), today, cfg, restrictions, checkin, garmin_rows, commitments)
     workouts = json.loads((guard.HERE / "workouts.json").read_text(encoding="utf-8"))
+    status["commitments_active"] = commitments_on
     cands = guard.candidates(status, workouts)
     names = {w["id"]: w["name"] for w in workouts}
     choice = decide(status, cands, recent_sessions(rows, cfg, today), checkin)
