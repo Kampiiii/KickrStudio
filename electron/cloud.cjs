@@ -294,6 +294,7 @@ async function ensureAgentSession(base, app, user, sessionId, headers) {
 function parseEvents(events) {
   const tools = []
   const charts = []
+  const workouts = []
   let answer = ''
   for (const ev of Array.isArray(events) ? events : []) {
     for (const part of ev?.content?.parts || []) {
@@ -302,12 +303,14 @@ function parseEvents(events) {
       // Ergebnis von create_chart: die App zeichnet das Diagramm selbst
       const resp = part.functionResponse || part.function_response
       if (resp?.name === 'create_chart' && resp.response?.chart) charts.push(resp.response.chart)
+      // Programm-Vorschlag: die App zeigt eine Karte, gespeichert wird erst nach Klick des Nutzers
+      if (resp?.name === 'propose_workout' && resp.response?.workout) workouts.push(resp.response.workout)
     }
     const text = (ev?.content?.parts || []).filter(p => typeof p.text === 'string' && !p.thought).map(p => p.text).join('')
     const hasCall = (ev?.content?.parts || []).some(p => p.functionCall || p.function_call)
     if (text && !hasCall && ev?.content?.role !== 'user') answer = text
   }
-  return { answer, tools, charts }
+  return { answer, tools, charts, workouts }
 }
 
 async function askAgent(question, sessionId) {
@@ -329,8 +332,8 @@ async function askAgent(question, sessionId) {
     r = await fetch(`${base}/run`, { method: 'POST', headers, body, signal: AbortSignal.timeout(180000) })
   }
   if (!r.ok) throw new Error(`Agent-Anfrage fehlgeschlagen (HTTP ${r.status}): ${(await r.text()).slice(0, 400)}`)
-  const { answer, tools, charts } = parseEvents(await r.json())
-  return { ok: true, answer: answer || (charts.length ? '' : '(keine Antwort erhalten)'), tools, charts }
+  const { answer, tools, charts, workouts } = parseEvents(await r.json())
+  return { ok: true, answer: answer || (charts.length || workouts.length ? '' : '(keine Antwort erhalten)'), tools, charts, workouts }
 }
 
 module.exports = { sync, test, askAgent, buildSql, parseEvents, ndjson }

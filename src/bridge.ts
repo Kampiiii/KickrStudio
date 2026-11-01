@@ -1,7 +1,10 @@
 // Brücke zum Electron-Main-Prozess. Läuft die App im normalen Browser
 // (z.B. Vite-Dev ohne Electron), springt ein localStorage-Mock ein,
 // damit UI und Simulator voll testbar sind.
-import type { Workout } from './engine/model'
+import type { Segment, Workout } from './engine/model'
+
+// Programm-Vorschlag des Coaches (noch ohne ID, wird erst nach Klick des Nutzers gespeichert)
+export interface WorkoutProposal { name: string; description?: string; tags?: string[]; segments: Segment[] }
 
 export interface Settings {
   ftp: number
@@ -150,7 +153,7 @@ export interface KickrBridge {
 
   cloudTest(): Promise<{ ok: boolean; error?: string }>
   cloudSync(): Promise<{ ok: boolean; uploadedSessions?: number; totalSessions?: number; bodyRows?: number; planRows?: number; seconds?: number; error?: string }>
-  cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; charts?: ChartSpec[]; error?: string }>
+  cloudAsk(question: string, sessionId: string): Promise<{ ok: boolean; answer?: string; tools?: { name: string; args: Record<string, unknown> }[]; charts?: ChartSpec[]; workouts?: WorkoutProposal[]; error?: string }>
 
   getDebugLog(): Promise<{ startupLog: string; fallbackLog: string; dataDir: string; logFile: string; appPath: string; isPackaged: boolean; versions: Record<string, string> }>
   openLogFolder(): Promise<void>
@@ -248,6 +251,22 @@ const browserMock: KickrBridge = {
   cloudSync: async () => ({ ok: false, error: 'Google Cloud nur in der Desktop-App verfügbar.' }),
   // Browser-Testmodus: "Demo-Diagramm" in der Frage liefert ein Beispiel, um die Darstellung ohne Cloud zu prüfen
   cloudAsk: async (question) => {
+    // Browser-Testmodus: "Demo-Programm" liefert einen Programm-Vorschlag, um die Karte ohne Cloud zu prüfen
+    if (question.toLowerCase().includes('demo-programm')) {
+      return {
+        ok: true,
+        answer: 'Demo: Ein norwegisches 4×4 — vier Intervalle à 4 min bei ca. 110 % FTP mit 3 min lockerer Erholung. Die Herzfrequenz dient als Kontrolle (Ziel 90–95 % HFmax im letzten Drittel).',
+        tools: [{ name: 'propose_workout', args: { name: 'Norwegisches 4x4' } }],
+        workouts: [{
+          name: 'Norwegisches 4x4', description: 'VO2max-Block nach Helgerud: 4×4 min hart, 3 min locker.', tags: ['VO2max', 'Z5'],
+          segments: [
+            { type: 'warmup', sec: 600, fromPct: 40, toPct: 70 },
+            { type: 'intervals', reps: 4, onSec: 240, onPct: 110, offSec: 180, offPct: 55 },
+            { type: 'cooldown', sec: 300, fromPct: 60, toPct: 40 },
+          ],
+        }],
+      }
+    }
     if (!question.toLowerCase().includes('demo-diagramm')) return { ok: false, error: 'Coach nur in der Desktop-App verfügbar.' }
     const t = Array.from({ length: 300 }, (_, i) => i * 10)
     return {

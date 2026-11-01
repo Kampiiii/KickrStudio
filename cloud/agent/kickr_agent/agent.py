@@ -151,6 +151,74 @@ def create_chart(title: str, sql: str, x_column: str, y_columns: list[str], kind
         return {"error": str(exc)}
 
 
+def _check(seg: dict, key: str, lo: float, hi: float) -> float:
+    v = seg.get(key)
+    if not isinstance(v, (int, float)) or isinstance(v, bool) or not lo <= v <= hi:
+        raise ValueError(f"'{key}' muss eine Zahl zwischen {lo} und {hi} sein (Abschnitt: {seg}).")
+    return float(v)
+
+
+def propose_workout(name: str, description: str, segments_json: str, tags_csv: str = "") -> dict:
+    """Schlägt ein Trainingsprogramm (Workout) vor. Es wird NICHT automatisch gespeichert: Die App zeigt
+    den Vorschlag als Karte, und der Nutzer speichert ihn selbst. Nur aufrufen, wenn der Nutzer ausdrücklich
+    ein Programm möchte.
+
+    Alle Leistungen sind Prozent der FTP (100 = FTP). Das Programm skaliert so automatisch mit der FTP.
+
+    Args:
+        name: kurzer Name, z.B. 'Norwegisches 4x4'.
+        description: ein bis zwei Sätze zu Ziel und Ablauf.
+        segments_json: JSON-Liste der Abschnitte in Reihenfolge. Erlaubte Abschnitte:
+            {"type":"warmup","sec":600,"fromPct":40,"toPct":70}   (ebenso "cooldown" und "ramp")
+            {"type":"steady","sec":300,"pct":65}
+            {"type":"intervals","reps":4,"onSec":240,"onPct":110,"offSec":180,"offPct":55}
+            {"type":"freeride","sec":300}
+        tags_csv: optionale Stichworte, durch Komma getrennt (z.B. 'VO2max,Z5').
+
+    Returns:
+        Dict mit 'workout' (wird in der App gezeigt) und 'dauer_min', oder 'error' bei ungültigen Angaben.
+    """
+    try:
+        segs = json.loads(segments_json)
+        if not isinstance(segs, list) or not 1 <= len(segs) <= 40:
+            raise ValueError("segments_json muss eine Liste mit 1 bis 40 Abschnitten sein.")
+        clean, total = [], 0.0
+        for s in segs:
+            t = s.get("type") if isinstance(s, dict) else None
+            if t in ("warmup", "cooldown", "ramp"):
+                sec = _check(s, "sec", 30, 3600)
+                clean.append({"type": t, "sec": int(sec), "fromPct": _check(s, "fromPct", 20, 150), "toPct": _check(s, "toPct", 20, 150)})
+                total += sec
+            elif t == "steady":
+                sec = _check(s, "sec", 10, 7200)
+                clean.append({"type": t, "sec": int(sec), "pct": _check(s, "pct", 20, 200)})
+                total += sec
+            elif t == "intervals":
+                reps = int(_check(s, "reps", 1, 40))
+                on, off = _check(s, "onSec", 5, 1800), _check(s, "offSec", 5, 1800)
+                clean.append({"type": t, "reps": reps, "onSec": int(on), "onPct": _check(s, "onPct", 30, 250),
+                              "offSec": int(off), "offPct": _check(s, "offPct", 20, 150)})
+                total += reps * (on + off)
+            elif t == "freeride":
+                sec = _check(s, "sec", 30, 3600)
+                clean.append({"type": t, "sec": int(sec)})
+                total += sec
+            else:
+                raise ValueError(f"Unbekannter Abschnittstyp: {t!r}.")
+        if total > 4 * 3600:
+            raise ValueError("Das Programm darf höchstens 4 Stunden dauern.")
+        tags = [x.strip() for x in tags_csv.split(",") if x.strip()][:5]
+        return {
+            "workout": {"name": name.strip()[:60] or "Programm", "description": description.strip()[:400],
+                        "tags": tags, "segments": clean},
+            "dauer_min": round(total / 60),
+            "hinweis": "Der Vorschlag wird dem Nutzer in der App als Karte gezeigt, er speichert ihn selbst. "
+                       "Beschreibe kurz den Aufbau und wiederhole nicht jede Zahl.",
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 INSTRUCTION = f"""Du bist der persönliche Trainingsassistent für einen Ausdauersportler (Rad: Indoor auf
 einem Wahoo Kickr sowie Outdoor; dazu Laufen -- beides über Strava importiert). Antworte immer auf
 Deutsch, knapp und konkret.
@@ -235,6 +303,19 @@ Differenzen, die diese einfachen Formeln hier liefern können. Nenne bei einer g
 wahrscheinlichste Ursache (ungereizte FTP, oder beim Peak-Power-Wert: keine Einheit war ein echter
 Maximaltest) statt nur die Zahlen zu wiederholen.
 
+Programme erstellen: Bittet der Nutzer ausdrücklich um ein Trainingsprogramm (z.B. "baue mir ein norwegisches
+4x4"), rufe propose_workout auf. Du speicherst nichts selbst; die App zeigt den Vorschlag als Karte und der
+Nutzer speichert ihn. Alle Leistungen sind Prozent der FTP. Gib immer Aufwärmen und Ausfahren mit an. Die App
+steuert nur nach Watt, nicht nach Herzfrequenz: Erwähne deshalb in einem Satz, dass die Herzfrequenz als
+Kontrolle dient. Wissen für typische Wünsche:
+- Norwegisches 4x4 (Helgerud): 10 min Aufwärmen, 4 Intervalle à 4 min bei 90-95 % der max. Herzfrequenz (in
+  Watt grob 105-115 % FTP, Startwert 110 %), dazwischen 3 min aktive Erholung (grob 50-60 % FTP), 5 min Ausfahren.
+  Das Ziel ist die VO2max. Es ist sehr hart: gleichmäßig beginnen, nicht im ersten Intervall verheizen.
+- Schwellenintervalle ca. 95-105 % FTP, Sweet Spot 88-94 %, Tempo 76-87 %, Grundlage 55-75 %.
+Wenn die Herzfrequenz-/Leistungsdaten des Nutzers für die Wahl der Zielwerte nützlich sind (z.B. FTP-Entwicklung,
+vorherige VO2max-Einheiten), frage sie zuerst per SQL ab. Beschreibe nach dem Aufruf kurz, was das Programm
+bewirken soll und wie hart es wird.
+
 Vorgehen: Rufe zuerst describe_tables auf, schreibe dann passende SQL-Abfragen und führe sie mit
 run_sql aus. Sobald ein Verlauf oder Vergleich über die Zeit gefragt ist (z.B. Pulskurve einer Einheit,
 Leistung gegen Ziel, Form über die Wochen, TSS pro Woche), erstelle stattdessen mit create_chart ein
@@ -248,5 +329,5 @@ root_agent = Agent(
     model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
     description="Beantwortet Fragen zu Training, Form und Plan anhand der BigQuery-Iceberg-Tabellen.",
     instruction=INSTRUCTION,
-    tools=[describe_tables, run_sql, create_chart],
+    tools=[describe_tables, run_sql, create_chart, propose_workout],
 )

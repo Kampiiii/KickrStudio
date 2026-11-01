@@ -2,14 +2,16 @@
 // Iceberg-Tabellen in BigQuery per SQL abfragt.
 import { useEffect, useRef, useState } from 'react'
 import { useApp, setState } from '../state'
-import { bridge, type ChartSpec } from '../bridge'
+import { bridge, type ChartSpec, type WorkoutProposal } from '../bridge'
 import AgentChart from '../components/AgentChart'
+import WorkoutProposalCard from '../components/WorkoutProposalCard'
 
 interface Msg {
   role: 'user' | 'agent' | 'error'
   text: string
   tools?: { name: string; args: Record<string, unknown> }[]
   charts?: ChartSpec[]
+  workouts?: WorkoutProposal[]
 }
 
 const newId = () => 'chat-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -23,6 +25,7 @@ const SUGGESTIONS = [
   'Zeig mir die Herzfrequenz- und Leistungskurve meiner letzten Einheit als Diagramm.',
   'Wie hat sich mein Gewicht in den letzten 30 Tagen verändert?',
   'Wie hat sich meine geschätzte VO2max über die Zeit entwickelt?',
+  'Baue mir ein norwegisches 4x4, um meine VO2max zu verbessern.',
 ]
 
 export default function CoachPage() {
@@ -48,7 +51,7 @@ export default function CoachPage() {
     setBusy(true)
     const res = await bridge.cloudAsk(question, conversation.sessionId)
     setBusy(false)
-    if (res.ok) push({ role: 'agent', text: res.answer || '', tools: res.tools, charts: res.charts })
+    if (res.ok) push({ role: 'agent', text: res.answer || '', tools: res.tools, charts: res.charts, workouts: res.workouts })
     else push({ role: 'error', text: res.error || 'Unbekannter Fehler' })
   }
 
@@ -91,9 +94,10 @@ export default function CoachPage() {
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`msg ${m.role}${m.charts?.length ? ' wide' : ''}`}>
+          <div key={i} className={`msg ${m.role}${m.charts?.length || m.workouts?.length ? ' wide' : ''}`}>
             {m.charts?.map((c, k) => <AgentChart key={k} spec={c} />)}
             {m.text && <div className="msg-text">{m.text}</div>}
+            {m.workouts?.map((w, k) => <WorkoutProposalCard key={k} proposal={w} />)}
             {m.tools && m.tools.length > 0 && (
               <details className="msg-tools">
                 <summary>{m.tools.length} Abfrage{m.tools.length === 1 ? '' : 'n'} an die Daten anzeigen</summary>
