@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('kickr', {
   savePlanEntry: (entry) => ipcRenderer.invoke('plan:save', entry),
   deletePlanEntry: (id) => ipcRenderer.invoke('plan:delete', id),
   stravaConnect: () => ipcRenderer.invoke('strava:connect'),
+  stravaTestBroker: () => ipcRenderer.invoke('strava:testBroker'),
   stravaDisconnect: () => ipcRenderer.invoke('strava:disconnect'),
   stravaUpload: (sessionId) => ipcRenderer.invoke('strava:upload', sessionId),
   stravaImportActivities: () => ipcRenderer.invoke('strava:importActivities'),

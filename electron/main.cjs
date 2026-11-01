@@ -284,6 +284,10 @@ ipcMain.handle('plan:save', (_e, entry) => store.savePlanEntry(entry))
 ipcMain.handle('plan:delete', (_e, id) => { store.deletePlanEntry(id); return true })
 
 ipcMain.handle('strava:connect', () => strava.connect())
+ipcMain.handle('strava:testBroker', async () => {
+  try { return await strava.testBroker() }
+  catch (e) { logDiag('STRAVA-BROKER-TEST: ' + (e?.stack || e)); return { ok: false, error: String(e?.message || e) } }
+})
 ipcMain.handle('strava:disconnect', () => { strava.disconnect(); return true })
 ipcMain.handle('strava:upload', async (_e, sessionId) => {
   try {

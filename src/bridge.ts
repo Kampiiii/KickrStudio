@@ -141,6 +141,7 @@ export interface KickrBridge {
   deletePlanEntry(id: string): Promise<boolean>
   stravaConnect(): Promise<{ ok: boolean; athleteName?: string; error?: string }>
   stravaDisconnect(): Promise<boolean>
+  stravaTestBroker(): Promise<{ ok: boolean; athlete?: string; error?: string }>
   stravaUpload(sessionId: string): Promise<{ ok: boolean; activityId?: number | null; pending?: boolean; error?: string }>
   stravaImportActivities(): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }>
   stravaBackfillStreams(): Promise<{ ok: boolean; done?: number; failed?: number; total?: number; error?: string }>
@@ -242,6 +243,7 @@ const browserMock: KickrBridge = {
   deletePlanEntry: async (id) => { lsSet('ks-plan', ls<PlanEntry[]>('ks-plan', []).filter(e => e.id !== id)); return true },
   stravaConnect: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaDisconnect: async () => true,
+  stravaTestBroker: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaUpload: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaImportActivities: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),
   stravaBackfillStreams: async () => ({ ok: false, error: 'Strava nur in der Desktop-App verfügbar.' }),

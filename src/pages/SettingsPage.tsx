@@ -257,6 +257,7 @@ export default function SettingsPage() {
 function CloudSection({ s, upd }: { s: Settings; upd: (patch: Partial<Settings>) => void }) {
   const [testing, setTesting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [testingStrava, setTestingStrava] = useState(false)
   const c = s.cloud
   const set = (patch: Partial<Settings['cloud']>) => upd({ cloud: { ...c, ...patch } })
 
@@ -266,6 +267,14 @@ function CloudSection({ s, upd }: { s: Settings; upd: (patch: Partial<Settings>)
     setTesting(false)
     if (r.ok) showToast('Google Cloud erreichbar: Bucket und Dataset gefunden ✓')
     else showToast(r.error || 'Verbindungstest fehlgeschlagen', 'err')
+  }
+
+  const testStrava = async () => {
+    setTestingStrava(true)
+    const r = await bridge.stravaTestBroker()
+    setTestingStrava(false)
+    if (r.ok) showToast(`Strava-Token vom Cloud-Dienst gültig${r.athlete ? ` (${r.athlete})` : ''} ✓`)
+    else showToast(r.error || 'Token-Dienst-Test fehlgeschlagen', 'err')
   }
 
   const sync = async () => {
@@ -311,6 +320,7 @@ function CloudSection({ s, upd }: { s: Settings; upd: (patch: Partial<Settings>)
         </div>
         <div className="full row wrap">
           <button className="btn" disabled={testing} onClick={test}>{testing ? 'Teste …' : 'Verbindung testen'}</button>
+          <button className="btn" disabled={testingStrava} onClick={testStrava}>{testingStrava ? 'Teste …' : 'Strava-Token-Dienst testen'}</button>
           <button className="btn primary" disabled={syncing} onClick={sync}>{syncing ? 'Synchronisiere …' : '☁ Jetzt synchronisieren'}</button>
         </div>
         <div className="full hint">

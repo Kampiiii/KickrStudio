@@ -76,6 +76,17 @@ async function brokerToken(brokerUrl) {
   return data.access_token
 }
 
+// Prüft den Cloud-Zugang: Token vom Dienst holen und damit bei Strava anfragen (unabhängig vom Haken).
+async function testBroker() {
+  const url = store.getSettings().cloud?.stravaBrokerUrl
+  if (!url) return { ok: false, error: 'Keine Token-Dienst-URL eingetragen.' }
+  const token = await brokerToken(url)
+  const r = await fetch('https://www.strava.com/api/v3/athlete', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) })
+  const a = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(`Strava lehnt das Token ab: HTTP ${r.status}`)
+  return { ok: true, athlete: [a.firstname, a.lastname].filter(Boolean).join(' ') }
+}
+
 async function getFreshToken() {
   const settings = store.getSettings()
   if (settings.cloud?.stravaViaCloud && settings.cloud.stravaBrokerUrl) return brokerToken(settings.cloud.stravaBrokerUrl)
@@ -289,4 +300,4 @@ function disconnect() {
   store.saveSettings(s)
 }
 
-module.exports = { connect, uploadTcx, importActivities, backfillStreams, disconnect }
+module.exports = { testBroker, connect, uploadTcx, importActivities, backfillStreams, disconnect }
